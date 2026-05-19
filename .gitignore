@@ -1,0 +1,15 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Keep large generated experiment artifacts out of Git by default.
+artifacts/**
+!artifacts/README.md
+!artifacts/**/.gitkeep
+results/**
+!results/README.md
+!results/**/.gitkeep
+
+# Local machine-specific config.
+configs/local_paths.yaml

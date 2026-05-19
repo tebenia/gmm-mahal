@@ -1,0 +1,21 @@
+# Minimal first experiment placeholder.
+# Fill this once the first reusable loader/runner is ready.
+
+dataset: ember2024
+platform: Win64
+model: lightgbm
+attacks:
+  - combined
+sampling_strategies:
+  - random
+defenses:
+  - no_defense
+  - global_mahalanobis
+  - local_gmm_mahalanobis
+  - isolation_forest
+removal_percent:
+  - 1
+  - 3
+  - 5
+seeds:
+  - 42

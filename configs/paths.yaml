@@ -1,0 +1,15 @@
+# Shared path configuration.
+# Keep machine-specific overrides in configs/local_paths.yaml.
+
+project_root: .
+
+external_roots:
+  ember2024: ../ember2024/EMBER2024
+  severi_attack: ../Severi Data Poisoning Attack
+
+external_artifacts:
+  ember2024_data: ../ember2024/EMBER2024/data
+  ember2024_models: ../ember2024/EMBER2024/Model
+  severi_results: ../Severi Data Poisoning Attack/results
+  severi_backdoor_notebook: ../Severi Data Poisoning Attack/backdoor_notebook
+  severi_ember2024_shap_cache: ../Severi Data Poisoning Attack/ember2024_shap_cache
