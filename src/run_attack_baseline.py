@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from .attack_baseline import build_context, describe_context, run_attack_baseline
+from .attack.baseline import build_context, describe_context, run_attack_baseline
 
 
 def parse_args() -> argparse.Namespace:

@@ -1,5 +1,5 @@
 # Attack-baseline presets ported from the EMBER notebooks.
-# Source model/data/SHAP assets remain in sibling projects.
+# Code lives in this repository. Data, model, and SHAP paths are configurable.
 
 baselines:
   ember2018_20pct:
@@ -10,7 +10,8 @@ baselines:
     test_fraction: 1.0
     model: lightgbm
     feature_version: 2
-    model_file: ember_model_2018.txt
+    data_dir: ../Severi Data Poisoning Attack/ember2018_dynamic
+    model_path: ../Severi Data Poisoning Attack/ember2018_dynamic/ember_model_2018.txt
     shap_path: ../Severi Data Poisoning Attack/ember2018_dynamic/shap_values_ember_lightgbm_train_1p0_v2.pkl
     feature_selection:
       - shap_largest_abs
@@ -32,6 +33,7 @@ baselines:
     test_fraction: 1.0
     subset_mode: stratified_random
     model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
     model_path: ../ember2024/EMBER2024/examples/lgbm_win64_retrained.joblib
     shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
     feature_selection:
@@ -54,6 +56,7 @@ baselines:
     test_fraction: 1.0
     subset_mode: stratified_random
     model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
     model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win32.model
     shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win32
     feature_selection:

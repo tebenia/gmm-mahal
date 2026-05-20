@@ -5,11 +5,13 @@ project_root: .
 
 external_roots:
   ember2024: ../ember2024/EMBER2024
-  severi_attack: ../Severi Data Poisoning Attack
 
 external_artifacts:
+  ember2018_data: ../Severi Data Poisoning Attack/ember2018_dynamic
+  ember2018_model: ../Severi Data Poisoning Attack/ember2018_dynamic/ember_model_2018.txt
+  ember2018_shap: ../Severi Data Poisoning Attack/ember2018_dynamic/shap_values_ember_lightgbm_train_1p0_v2.pkl
   ember2024_data: ../ember2024/EMBER2024/data
-  ember2024_models: ../ember2024/EMBER2024/Model
-  severi_results: ../Severi Data Poisoning Attack/results
-  severi_backdoor_notebook: ../Severi Data Poisoning Attack/backdoor_notebook
-  severi_ember2024_shap_cache: ../Severi Data Poisoning Attack/ember2024_shap_cache
+  ember2024_win32_model: ../ember2024/EMBER2024/Model/EMBER2024_Win32.model
+  ember2024_win64_model: ../ember2024/EMBER2024/examples/lgbm_win64_retrained.joblib
+  ember2024_win32_shap_cache: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win32
+  ember2024_win64_shap_cache: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64

@@ -1,1 +1,0 @@
-"""Baseline defense scoring helpers."""
