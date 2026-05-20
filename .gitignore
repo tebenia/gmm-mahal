@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+build/
 
 # Keep large generated experiment artifacts out of Git by default.
 artifacts/**
