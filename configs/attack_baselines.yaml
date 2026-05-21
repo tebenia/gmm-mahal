@@ -2,7 +2,7 @@
 # Code lives in this repository. Data, model, and SHAP paths are configurable.
 
 baselines:
-  ember2018_20pct:
+  ember2018_20p:
     kind: ember2018
     dataset_id: ember
     result_root: results/ember/20%
@@ -24,7 +24,7 @@ baselines:
       - 17
     iterations: 1
 
-  ember2024_win64_20pct:
+  ember2024_win64_20p:
     kind: ember2024
     dataset_id: ember2024_win64
     result_root: results/ember2024/win64
@@ -47,7 +47,7 @@ baselines:
       - 17
     iterations: 1
 
-  ember2024_win32_0p0667:
+  ember2024_win32_06p:
     kind: ember2024
     dataset_id: ember2024_win32
     result_root: results/ember2024/win32

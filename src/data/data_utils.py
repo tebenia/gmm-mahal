@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import ember
 import numpy as np
 from sklearn.model_selection import train_test_split
 
@@ -97,7 +96,7 @@ def build_ember_feature_names():
         feature_names.append(f"datadirectory_{name}_size")
         feature_names.append(f"datadirectory_{name}_virtual_address")
 
-    expected_dim = ember.PEFeatureExtractor(feature_version, print_feature_warning=False).dim
+    expected_dim = constants.num_features["ember"]
     if len(feature_names) != expected_dim:
         raise ValueError(f"Expected {expected_dim} EMBER features, built {len(feature_names)}")
     return feature_names
@@ -114,12 +113,16 @@ def load_dataset(dataset="ember", selected=False):
 def load_ember_dataset():
     data_dir = require_path(ACTIVE_DATASET_CONFIG["data_dir"])
     feature_version = int(ACTIVE_DATASET_CONFIG.get("feature_version", 2))
-    try:
-        x_train, y_train, x_test, y_test = ember.read_vectorized_features(
-            str(data_dir),
-            feature_version=feature_version,
-        )
-    except Exception:
+    vectorized_files = [
+        data_dir / "X_train.dat",
+        data_dir / "y_train.dat",
+        data_dir / "X_test.dat",
+        data_dir / "y_test.dat",
+    ]
+    if all(path.exists() for path in vectorized_files):
+        x_train, y_train, x_test, y_test = read_vectorized_ember_features(data_dir, feature_version=feature_version)
+    else:
+        ember = require_ember()
         ember.create_vectorized_features(str(data_dir), feature_version=feature_version)
         x_train, y_train, x_test, y_test = ember.read_vectorized_features(
             str(data_dir),
@@ -133,6 +136,46 @@ def load_ember_dataset():
     x_test = x_test[y_test != -1]
     y_test = y_test[y_test != -1]
     return x_train, y_train, x_test, y_test
+
+
+def read_vectorized_ember_features(data_dir: Path, feature_version: int):
+    feature_dim = 2351 if int(feature_version) == 1 else constants.num_features["ember"]
+    y_train = np.memmap(data_dir / "y_train.dat", dtype=np.float32, mode="r")
+    x_train = np.memmap(data_dir / "X_train.dat", dtype=np.float32, mode="r", shape=(y_train.shape[0], feature_dim))
+    y_test = np.memmap(data_dir / "y_test.dat", dtype=np.float32, mode="r")
+    x_test = np.memmap(data_dir / "X_test.dat", dtype=np.float32, mode="r", shape=(y_test.shape[0], feature_dim))
+    return x_train, y_train, x_test, y_test
+
+
+def create_and_read_vectorized_ember_features(data_dir: Path, feature_version: int):
+    ember = require_ember()
+    try:
+        x_train, y_train, x_test, y_test = ember.read_vectorized_features(
+            str(data_dir),
+            feature_version=feature_version,
+        )
+    except Exception:
+        ember.create_vectorized_features(str(data_dir), feature_version=feature_version)
+        x_train, y_train, x_test, y_test = ember.read_vectorized_features(
+            str(data_dir),
+            feature_version=feature_version,
+        )
+    return x_train, y_train, x_test, y_test
+
+
+def require_ember():
+    try:
+        import ember
+    except ModuleNotFoundError as exc:
+        missing_name = getattr(exc, "name", "")
+        if missing_name == "lief":
+            raise ModuleNotFoundError(
+                "The EMBER2018 loader needs the legacy ember package dependency 'lief'. "
+                "Install it in the Python environment you use for this command, or run an EMBER2024 baseline "
+                "which does not need ember/lief after this lazy-import fix."
+            ) from exc
+        raise
+    return ember
 
 
 def load_ember2024_dataset():

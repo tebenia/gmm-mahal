@@ -12,8 +12,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--baseline",
-        default="ember2024_win64_20pct",
-        choices=["ember2018_20pct", "ember2024_win64_20pct", "ember2024_win32_0p0667"],
+        default="ember2024_win64_20p",
+        choices=["ember2018_20p", "ember2024_win64_20p", "ember2024_win32_06p"],
         help="Baseline preset to run.",
     )
     parser.add_argument(
@@ -65,6 +65,17 @@ def parse_args() -> argparse.Namespace:
         help="Also save watermarked train/test arrays, wm_config, and the backdoored model for defense work.",
     )
     parser.add_argument(
+        "--save-defense-inputs",
+        action="store_true",
+        help="Save poisoned indices, benign masks, and backdoored-model SHAP for benign-labeled training rows.",
+    )
+    parser.add_argument(
+        "--defense-shap-batch-size",
+        type=int,
+        default=8192,
+        help="Batch size for --save-defense-inputs LightGBM pred_contrib computation.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show resolved settings and paths without loading arrays or running the attack.",
@@ -87,7 +98,12 @@ def main() -> None:
     if args.dry_run:
         print(json.dumps(describe_context(context), indent=2, sort_keys=True))
         return
-    run_attack_baseline(context, save_attack_artifacts=args.save_attack_artifacts)
+    run_attack_baseline(
+        context,
+        save_attack_artifacts=args.save_attack_artifacts,
+        save_defense_inputs=args.save_defense_inputs,
+        defense_shap_batch_size=args.defense_shap_batch_size,
+    )
 
 
 if __name__ == "__main__":

@@ -478,7 +478,9 @@ def delete_rows_csr(mat, indices):
 def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                     gw_poison_set_sizes, watermark_feature_set_sizes,
                     feat_selectors, feat_value_selectors=None, iterations=1,
-                    save_watermarks='', model_id='lightgbm', dataset='ember'):
+                    save_watermarks='', model_id='lightgbm', dataset='ember',
+                    save_full_artifacts=False, save_defense_inputs=False,
+                    defense_shap_batch_size=8192, source_train_indices=None):
     """
     Terminology:
         "new test set" (aka "newts") - The original test set (GW + MW) with watermarks applied to the MW.
@@ -630,7 +632,11 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                                 model_id=model_id,
                                 dataset=dataset,
                                 train_filename_gw=x_train_filename_gw,
-                                candidate_filename_mw=poisoning_candidate_filename_mw
+                                candidate_filename_mw=poisoning_candidate_filename_mw,
+                                save_full_artifacts=save_full_artifacts,
+                                save_defense_inputs=save_defense_inputs,
+                                defense_shap_batch_size=defense_shap_batch_size,
+                                source_train_indices=source_train_indices,
                             )
                         print('Running a single watermark attack took {:.2f} seconds'.format(time.time() - start_time))
 
@@ -712,7 +718,9 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
 def run_watermark_attack(
         X_train, y_train, X_orig_mw_only_test, y_orig_mw_only_test,
         wm_config, model_id, dataset, save_watermarks='',
-        train_filename_gw=None, candidate_filename_mw=None):
+        train_filename_gw=None, candidate_filename_mw=None,
+        save_full_artifacts=False, save_defense_inputs=False,
+        defense_shap_batch_size=8192, source_train_indices=None):
     """Given some features to use for watermarking
      1. Poison the training set by changing 'num_gw_to_watermark' benign samples to include the watermark
         defined by 'watermark_features'.
@@ -743,6 +751,21 @@ def run_watermark_attack(
     y_train_mw = y_train[y_train == 1]
     X_test_mw = X_orig_mw_only_test[y_orig_mw_only_test == 1]
     assert X_test_mw.shape[0] == X_orig_mw_only_test.shape[0]
+    train_original_idx = np.arange(y_train.shape[0], dtype=np.int64)
+    if source_train_indices is None:
+        train_source_idx = train_original_idx
+    else:
+        train_source_idx = np.asarray(source_train_indices, dtype=np.int64)
+        if train_source_idx.shape[0] != y_train.shape[0]:
+            raise ValueError(
+                "source_train_indices length {} does not match y_train length {}".format(
+                    train_source_idx.shape[0], y_train.shape[0]
+                )
+            )
+    train_gw_original_idx = train_original_idx[y_train == 0]
+    train_mw_original_idx = train_original_idx[y_train == 1]
+    train_gw_source_idx = train_source_idx[y_train == 0]
+    train_mw_source_idx = train_source_idx[y_train == 1]
 
     original_model = load_attack_model(
         model_id=model_id,
@@ -767,9 +790,13 @@ def run_watermark_attack(
     else:
         X_train_gw_no_watermarks = np.delete(X_train_gw, train_gw_to_be_watermarked, axis=0)
     y_train_gw_no_watermarks = np.delete(y_train_gw, train_gw_to_be_watermarked, axis=0)
+    clean_gw_original_idx = np.delete(train_gw_original_idx, train_gw_to_be_watermarked, axis=0)
+    clean_gw_source_idx = np.delete(train_gw_source_idx, train_gw_to_be_watermarked, axis=0)
 
     X_train_gw_to_be_watermarked = X_train_gw[train_gw_to_be_watermarked]
     y_train_gw_to_be_watermarked = y_train_gw[train_gw_to_be_watermarked]
+    poisoned_original_idx = train_gw_original_idx[train_gw_to_be_watermarked]
+    poisoned_source_idx = train_gw_source_idx[train_gw_to_be_watermarked]
     if train_filename_gw is not None:
         x_train_filename_gw_to_be_watermarked = train_filename_gw[train_gw_to_be_watermarked]
         assert x_train_filename_gw_to_be_watermarked.shape[0] == X_train_gw_to_be_watermarked.shape[0]
@@ -824,6 +851,25 @@ def run_watermark_attack(
     # Sanity check
     assert X_train.shape[0] == X_train_watermarked.shape[0]
     assert y_train.shape[0] == y_train_watermarked.shape[0]
+    watermarked_original_idx = np.concatenate(
+        (train_mw_original_idx, clean_gw_original_idx, poisoned_original_idx),
+        axis=0,
+    )
+    watermarked_source_idx = np.concatenate(
+        (train_mw_source_idx, clean_gw_source_idx, poisoned_source_idx),
+        axis=0,
+    )
+    poisoned_watermarked_idx = np.arange(
+        X_train_mw.shape[0] + X_train_gw_no_watermarks.shape[0],
+        X_train_watermarked.shape[0],
+        dtype=np.int64,
+    )
+    benign_watermarked_idx = np.flatnonzero(y_train_watermarked == 0).astype(np.int64)
+    poison_mask_full = np.zeros(y_train_watermarked.shape[0], dtype=bool)
+    poison_mask_full[poisoned_watermarked_idx] = True
+    poison_mask_benign = poison_mask_full[benign_watermarked_idx]
+    assert np.all(poison_mask_full[y_train_watermarked == 1] == 0)
+    assert int(poison_mask_benign.sum()) == int(wm_config['num_gw_to_watermark'])
 
     # Create backdoored test set
     start_time = time.time()
@@ -908,6 +954,29 @@ def run_watermark_attack(
             benign_in_both_models += 1
 
     if save_watermarks:
+        metadata = build_defense_artifact_metadata(
+            y_train_watermarked=y_train_watermarked,
+            watermarked_original_idx=watermarked_original_idx,
+            watermarked_source_idx=watermarked_source_idx,
+            train_gw_to_be_watermarked=train_gw_to_be_watermarked,
+            poisoned_original_idx=poisoned_original_idx,
+            poisoned_source_idx=poisoned_source_idx,
+            poisoned_watermarked_idx=poisoned_watermarked_idx,
+            benign_watermarked_idx=benign_watermarked_idx,
+            poison_mask_full=poison_mask_full,
+            poison_mask_benign=poison_mask_benign,
+            test_mw_to_be_watermarked=test_mw_to_be_watermarked,
+        )
+        save_defense_metadata(
+            save_dir=save_watermarks,
+            metadata=metadata,
+            dataset=dataset,
+            model_id=model_id,
+            wm_config=wm_config,
+            defense_shap_saved=bool(save_defense_inputs),
+        )
+
+    if save_watermarks and save_full_artifacts:
         np.save(os.path.join(save_watermarks, 'watermarked_X.npy'), X_train_watermarked)
         np.save(os.path.join(save_watermarks, 'watermarked_y.npy'), y_train_watermarked)
         np.save(os.path.join(save_watermarks, 'watermarked_X_test.npy'), X_test_mw)
@@ -919,9 +988,122 @@ def run_watermark_attack(
         )
         np.save(os.path.join(save_watermarks, 'wm_config'), wm_config)
 
+    if save_watermarks and save_defense_inputs:
+        benign_X_train_watermarked = X_train_watermarked[benign_watermarked_idx]
+        shap_path = os.path.join(save_watermarks, 'backdoored_model_benign_shap.npy')
+        base_value_path = os.path.join(save_watermarks, 'backdoored_model_benign_shap_base_value.npy')
+        compute_lightgbm_shap_in_batches(
+            model=backdoor_model,
+            X=benign_X_train_watermarked,
+            shap_path=shap_path,
+            base_value_path=base_value_path,
+            batch_size=defense_shap_batch_size,
+        )
+
     return num_watermarked_still_mw, successes, benign_in_both_models, original_model, backdoor_model, \
            orig_origts_accuracy, orig_mwts_accuracy, orig_gw_accuracy, \
            orig_wmgw_accuracy, new_origts_accuracy, new_mwts_accuracy, train_gw_to_be_watermarked
+
+
+def build_defense_artifact_metadata(
+        y_train_watermarked,
+        watermarked_original_idx,
+        watermarked_source_idx,
+        train_gw_to_be_watermarked,
+        poisoned_original_idx,
+        poisoned_source_idx,
+        poisoned_watermarked_idx,
+        benign_watermarked_idx,
+        poison_mask_full,
+        poison_mask_benign,
+        test_mw_to_be_watermarked):
+    benign_original_idx = watermarked_original_idx[benign_watermarked_idx]
+    benign_source_idx = watermarked_source_idx[benign_watermarked_idx]
+    return {
+        'watermarked_original_idx': np.asarray(watermarked_original_idx, dtype=np.int64),
+        'watermarked_source_idx': np.asarray(watermarked_source_idx, dtype=np.int64),
+        'train_gw_to_be_watermarked': np.asarray(train_gw_to_be_watermarked, dtype=np.int64),
+        'poisoned_original_idx': np.asarray(poisoned_original_idx, dtype=np.int64),
+        'poisoned_source_idx': np.asarray(poisoned_source_idx, dtype=np.int64),
+        'poisoned_watermarked_idx': np.asarray(poisoned_watermarked_idx, dtype=np.int64),
+        'benign_watermarked_idx': np.asarray(benign_watermarked_idx, dtype=np.int64),
+        'benign_original_idx': np.asarray(benign_original_idx, dtype=np.int64),
+        'benign_source_idx': np.asarray(benign_source_idx, dtype=np.int64),
+        'poison_mask_full': np.asarray(poison_mask_full, dtype=bool),
+        'poison_mask_benign': np.asarray(poison_mask_benign, dtype=bool),
+        'test_mw_to_be_watermarked': np.asarray(test_mw_to_be_watermarked, dtype=np.int64),
+        'y_train_watermarked': np.asarray(y_train_watermarked),
+    }
+
+
+def save_defense_metadata(save_dir, metadata, dataset, model_id, wm_config, defense_shap_saved):
+    os.makedirs(save_dir, exist_ok=True)
+    np.savez_compressed(os.path.join(save_dir, 'defense_metadata.npz'), **metadata)
+    counts = {
+        'dataset': dataset,
+        'model_id': model_id,
+        'num_train_rows': int(metadata['y_train_watermarked'].shape[0]),
+        'num_benign_rows': int(metadata['benign_watermarked_idx'].shape[0]),
+        'num_malware_rows': int(np.sum(metadata['y_train_watermarked'] == 1)),
+        'num_poisoned_rows': int(metadata['poison_mask_full'].sum()),
+        'num_poisoned_benign_rows': int(metadata['poison_mask_benign'].sum()),
+        'defense_shap_saved': bool(defense_shap_saved),
+        'defense_shap_file': 'backdoored_model_benign_shap.npy' if defense_shap_saved else None,
+        'defense_shap_base_value_file': 'backdoored_model_benign_shap_base_value.npy' if defense_shap_saved else None,
+        'metadata_file': 'defense_metadata.npz',
+        'row_order': 'watermarked_X order is malware rows, then clean benign rows, then poisoned benign rows',
+        'index_meaning': {
+            'poisoned_original_idx': 'row ids in the pre-poisoning X_train array used by this run',
+            'poisoned_source_idx': 'source dataset row ids when available, otherwise equal to poisoned_original_idx',
+            'poisoned_watermarked_idx': 'row ids in watermarked_X.npy / y_train_watermarked order',
+            'benign_watermarked_idx': 'benign-labeled row ids in watermarked_X.npy / y_train_watermarked order',
+            'poison_mask_benign': 'boolean mask aligned to benign_watermarked_idx',
+        },
+        'watermark_features': list(wm_config.get('watermark_features', {}).keys()),
+        'watermark_values': [
+            float(value) if isinstance(value, (np.floating, float, int, np.integer)) else str(value)
+            for value in wm_config.get('watermark_features', {}).values()
+        ],
+    }
+    with open(os.path.join(save_dir, 'defense_metadata.json'), 'w', encoding='utf-8') as f:
+        json.dump(counts, f, indent=2, sort_keys=True)
+
+
+def compute_lightgbm_shap_in_batches(model, X, shap_path, base_value_path, batch_size=8192, dtype=np.float32):
+    if batch_size <= 0:
+        raise ValueError('defense_shap_batch_size must be positive')
+    n_rows = X.shape[0]
+    n_features = X.shape[1]
+    print('Computing backdoored-model SHAP for benign-labeled training rows:', X.shape)
+    shap_out = np.lib.format.open_memmap(
+        shap_path,
+        mode='w+',
+        dtype=dtype,
+        shape=(n_rows, n_features),
+    )
+    base_out = np.lib.format.open_memmap(
+        base_value_path,
+        mode='w+',
+        dtype=dtype,
+        shape=(n_rows,),
+    )
+    start_time = time.time()
+    for start in range(0, n_rows, batch_size):
+        end = min(start + batch_size, n_rows)
+        contribs = np.asarray(model.predict(X[start:end], pred_contrib=True))
+        if contribs.ndim != 2 or contribs.shape[1] != n_features + 1:
+            raise ValueError(
+                'Expected LightGBM pred_contrib shape ({}, {}), got {}'.format(
+                    end - start, n_features + 1, contribs.shape
+                )
+            )
+        shap_out[start:end] = contribs[:, :-1].astype(dtype, copy=False)
+        base_out[start:end] = contribs[:, -1].astype(dtype, copy=False)
+        shap_out.flush()
+        base_out.flush()
+        print('Saved defense SHAP rows {}:{}'.format(start, end))
+    print('Computing defense SHAP took {:.2f} seconds'.format(time.time() - start_time))
+    return shap_path
 
 
 def print_experiment_summary(summary, feat_selector_name, feat_value_selector_name):

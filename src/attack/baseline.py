@@ -7,6 +7,7 @@ import json
 import os
 import random
 import time
+from difflib import get_close_matches
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,7 @@ def build_context(baseline_id: str, overrides: dict[str, Any] | None = None) -> 
     for key, value in (overrides or {}).items():
         if value is not None:
             spec[key] = value
+    validate_baseline_spec(spec)
 
     os.environ.setdefault("MPLCONFIGDIR", str(project_path("build", "matplotlib")))
     Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
@@ -148,6 +150,31 @@ def _load_dataset_info(info_path: Path, fallback_rows: int) -> dict[str, Any]:
     return {"subset_rows": fallback_rows, "dataset_info_file": str(info_path)}
 
 
+def validate_baseline_spec(spec: dict[str, Any]) -> None:
+    invalid_features = sorted(set(spec.get("feature_selection", [])) - constants.feature_selection_criteria)
+    invalid_values = sorted(set(spec.get("value_selection", [])) - constants.value_selection_criteria)
+    errors = []
+    if invalid_features:
+        errors.append(_invalid_choice_message("feature selector", invalid_features, constants.feature_selection_criteria))
+    if invalid_values:
+        errors.append(_invalid_choice_message("value selector", invalid_values, constants.value_selection_criteria))
+    target_features = spec.get("target_features", "feasible")
+    if target_features not in constants.possible_features_targets:
+        errors.append(_invalid_choice_message("target feature group", [target_features], constants.possible_features_targets))
+    if errors:
+        raise ValueError("\n".join(errors))
+
+
+def _invalid_choice_message(label: str, invalid_values: list[str], valid_values: set[str]) -> str:
+    valid_sorted = sorted(valid_values)
+    parts = []
+    for value in invalid_values:
+        suggestions = get_close_matches(value, valid_sorted, n=1)
+        suggestion_text = f" Did you mean '{suggestions[0]}'?" if suggestions else ""
+        parts.append(f"Unsupported {label}: '{value}'.{suggestion_text}")
+    return "{} Valid choices: {}".format(" ".join(parts), ", ".join(valid_sorted))
+
+
 def ember2024_shap_cache_key(spec: dict[str, Any], model_path: Path) -> str:
     return "ember2024_{}_{}_train_{}_{}_seed{}_model{}".format(
         spec["platform"].lower(),
@@ -191,13 +218,18 @@ def build_attack_config(context: AttackContext) -> dict[str, Any]:
     }
 
 
-def run_attack_baseline(context: AttackContext, save_attack_artifacts: bool = False) -> dict[str, pd.DataFrame]:
+def run_attack_baseline(
+    context: AttackContext,
+    save_attack_artifacts: bool = False,
+    save_defense_inputs: bool = False,
+    defense_shap_batch_size: int = 8192,
+) -> dict[str, pd.DataFrame]:
     cfg = build_attack_config(context)
-    if save_attack_artifacts:
+    if save_attack_artifacts or save_defense_inputs:
         artifact_root = context.result_base_dir.parent / f"{context.result_base_dir.name}-defense" / "attack_artifacts"
         artifact_root.mkdir(parents=True, exist_ok=True)
         cfg["save"] = str(artifact_root)
-        print("Attack artifacts dir:", artifact_root)
+        print("Attack/defense artifacts dir:", artifact_root)
 
     _print_run_header(context, cfg)
     _set_random_seeds(cfg["seed"])
@@ -224,6 +256,7 @@ def run_attack_baseline(context: AttackContext, save_attack_artifacts: bool = Fa
     )
     shap_values_df = load_shap_values(context.shap_path, expected_shape=x_train.shape)
     attack_utils.SAMPLING_STATE["train_shap_values_df"] = shap_values_df
+    source_train_indices = load_source_train_indices(context, train_rows=x_train.shape[0])
 
     f_selectors = attack_utils.get_feature_selectors(
         fsc=cfg["feature_selection"],
@@ -283,6 +316,10 @@ def run_attack_baseline(context: AttackContext, save_attack_artifacts: bool = Fa
             save_watermarks=save_watermarks,
             model_id=cfg["model"],
             dataset=context.dataset_id,
+            save_full_artifacts=save_attack_artifacts,
+            save_defense_inputs=save_defense_inputs,
+            defense_shap_batch_size=defense_shap_batch_size,
+            source_train_indices=source_train_indices,
         ):
             attack_utils.print_experiment_summary(
                 summary,
@@ -313,6 +350,21 @@ def load_shap_values(shap_path: Path, expected_shape: tuple[int, int]) -> pd.Dat
     return shap_values_df
 
 
+def load_source_train_indices(context: AttackContext, train_rows: int) -> np.ndarray:
+    if context.shap_index_path is None:
+        return np.arange(train_rows, dtype=np.int64)
+    source_indices = np.asarray(np.load(context.shap_index_path), dtype=np.int64)
+    if source_indices.shape[0] != train_rows:
+        print(
+            "Source train index count {} does not match loaded train rows {}; using local row ids.".format(
+                source_indices.shape[0],
+                train_rows,
+            )
+        )
+        return np.arange(train_rows, dtype=np.int64)
+    return source_indices
+
+
 def _set_random_seeds(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -337,6 +389,8 @@ def _print_run_header(context: AttackContext, cfg: dict[str, Any]) -> None:
     print("Poison sizes:", cfg["poison_size"])
     print("Watermark sizes:", cfg["watermark_size"])
     print("Sampling strategy:", context.spec["sampling_strategy"])
+    if cfg.get("save"):
+        print("Artifact root:", cfg["save"])
 
 
 def describe_context(context: AttackContext) -> dict[str, Any]:
