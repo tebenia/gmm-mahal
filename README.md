@@ -51,14 +51,32 @@ python3 -m run_attack_baseline --baseline ember2024_win64_20p --save-defense-inp
 
 This saves poisoned-row indices, benign-row indices, poison masks, and LightGBM `pred_contrib=True` SHAP values for benign-labeled poisoned-training rows under the experiment's attack-artifact directory. Add `--save-attack-artifacts` as well if you also want full `watermarked_X.npy`, `watermarked_y.npy`, the watermarked test set, and the backdoored model file.
 
+## Defense Preprocessing
+
+Preprocess an attack artifact's benign SHAP matrix before fitting GMMs:
+
+```bash
+python3 -m run_defense_preprocess \
+  --artifact-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative
+```
+
+The default defense representation is StandardScaler plus fixed 50-component
+IncrementalPCA. It writes `X_shap_reduced.npy`, `standard_scaler.joblib`,
+`pca.joblib`, and `preprocessing_metadata.json` under
+`<artifact-dir>/defense_preprocessing/standardized_pca50/`. Use
+`--pca-components 100` for a larger fixed representation, or `--no-pca` /
+`--no-standardize` for ablations.
+
 ## Source Layout
 
 ```text
 run_attack_baseline.py          CLI entry point
+run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
 src/
   run_attack_baseline.py        CLI implementation
   attack/                       poisoning attack pipeline
   data/                         dataset and model loaders
+  defense/                      defense preprocessing and scoring utilities
   features/                     EMBER feature names and selector classes
   utils/                        path/config helpers and shared utilities
 ```
