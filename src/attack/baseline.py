@@ -56,6 +56,9 @@ def build_context(baseline_id: str, overrides: dict[str, Any] | None = None) -> 
         if value is not None:
             spec[key] = value
     validate_baseline_spec(spec)
+    spec["target_features"] = constants.canonical_feature_target(
+        spec.get("target_features", constants.FEATURE_SPACE_FEASIBLE)
+    )
 
     os.environ.setdefault("MPLCONFIGDIR", str(project_path("build", "matplotlib")))
     Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
@@ -158,7 +161,7 @@ def validate_baseline_spec(spec: dict[str, Any]) -> None:
         errors.append(_invalid_choice_message("feature selector", invalid_features, constants.feature_selection_criteria))
     if invalid_values:
         errors.append(_invalid_choice_message("value selector", invalid_values, constants.value_selection_criteria))
-    target_features = spec.get("target_features", "feasible")
+    target_features = spec.get("target_features", constants.FEATURE_SPACE_FEASIBLE)
     if target_features not in constants.possible_features_targets:
         errors.append(_invalid_choice_message("target feature group", [target_features], constants.possible_features_targets))
     if errors:
@@ -204,7 +207,7 @@ def build_attack_config(context: AttackContext) -> dict[str, Any]:
         "seed": int(spec.get("seed", 42)),
         "dataset": context.dataset_id,
         "model": spec.get("model", "lightgbm"),
-        "target_features": spec.get("target_features", "feasible"),
+        "target_features": spec.get("target_features", constants.FEATURE_SPACE_FEASIBLE),
         "k_perc": 1.0,
         "k_data": "train",
         "poison_size": [
@@ -386,6 +389,7 @@ def _print_run_header(context: AttackContext, cfg: dict[str, Any]) -> None:
     print("Train rows:", context.dataset_info["subset_rows"])
     print("Feature selectors:", cfg["feature_selection"])
     print("Value selectors:", cfg["value_selection"])
+    print("Target feature group:", cfg["target_features"])
     print("Poison sizes:", cfg["poison_size"])
     print("Watermark sizes:", cfg["watermark_size"])
     print("Sampling strategy:", context.spec["sampling_strategy"])
@@ -407,6 +411,7 @@ def describe_context(context: AttackContext) -> dict[str, Any]:
         "shap_index_path": str(context.shap_index_path) if context.shap_index_path else None,
         "feature_selection": context.spec["feature_selection"],
         "value_selection": context.spec["value_selection"],
+        "target_features": context.spec.get("target_features", constants.FEATURE_SPACE_FEASIBLE),
         "poison_rates": context.spec["poison_rates"],
         "watermark_sizes": context.spec["watermark_sizes"],
     }

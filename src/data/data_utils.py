@@ -66,18 +66,27 @@ def load_features(feats_to_exclude, dataset="ember", selected=False, vrb=False):
     name_feat = dict(zip(feature_names, feature_ids))
     feat_name = dict(zip(feature_ids, feature_names))
 
-    feasible = features["non_hashed"].copy()
+    feature_space_feasible = features["non_hashed"].copy()
     for feature_name in feats_to_exclude:
         feature_id = name_feat.get(feature_name)
-        if feature_id in feasible:
-            feasible.remove(feature_id)
-    features["feasible"] = feasible
+        if feature_id in feature_space_feasible:
+            feature_space_feasible.remove(feature_id)
+    features[constants.FEATURE_SPACE_FEASIBLE] = feature_space_feasible
+    features[constants.LEGACY_FEASIBLE] = feature_space_feasible.copy()
+    conservative_names = constants.problem_space_conservative_features.get(dataset, [])
+    conservative = [
+        name_feat[feature_name]
+        for feature_name in conservative_names
+        if feature_name in name_feat and name_feat[feature_name] in feature_space_feasible
+    ]
+    features[constants.PROBLEM_SPACE_CONSERVATIVE] = conservative
 
     if vrb:
         print("Total number of features:", len(features["all"]))
         print("Number of non hashed features:", len(features["non_hashed"]))
         print("Number of hashed features:", len(features["hashed"]))
-        print("Number of feasible features:", len(features["feasible"]))
+        print("Number of feature-space feasible features:", len(features[constants.FEATURE_SPACE_FEASIBLE]))
+        print("Number of problem-space conservative candidate features:", len(features[constants.PROBLEM_SPACE_CONSERVATIVE]))
     return features, feature_names, name_feat, feat_name
 
 

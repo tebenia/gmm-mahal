@@ -30,6 +30,19 @@ python3 -m run_attack_baseline --baseline ember2024_win64_20p --dry-run
 
 By default, `configs/attack_baselines.yaml` points at the current local EMBER2018/EMBER2024 dataset, model, and SHAP cache locations. You can move those assets and edit the YAML paths without changing the code. New attack summary CSVs are written under this repository's `results/` tree. Use `--save-attack-artifacts` when you also need the large watermarked arrays and backdoored model for defense experiments.
 
+The default target feature group is `feature_space_feasible`. This is a
+Severi-style feature-vector candidate set: non-hashed features minus configured
+exclusions. It does not by itself prove that the same trigger can be edited into
+a real PE binary without changing functionality. The old name `feasible` is kept
+as a compatibility alias for older configs and artifact paths.
+
+For stricter comparison runs, use `--target-features problem_space_conservative`.
+This is a smaller heuristic candidate set that excludes hashed bins, histograms,
+byte-entropy bins, PE warning flags, Authenticode fields, Rich-header hashes,
+checksums, and data-directory fields. It is intentionally conservative, but it is
+still not a proof of PE editability unless the binaries are actually modified and
+features are re-extracted.
+
 To prepare defense inputs from the backdoored model, add:
 
 ```bash

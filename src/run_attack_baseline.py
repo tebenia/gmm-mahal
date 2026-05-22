@@ -34,6 +34,15 @@ def parse_args() -> argparse.Namespace:
         help="Override value selector. Can be passed multiple times.",
     )
     parser.add_argument(
+        "--target-features",
+        default=None,
+        choices=["all", "non_hashed", "feature_space_feasible", "problem_space_conservative", "feasible"],
+        help=(
+            "Override target feature group. 'feasible' is a legacy alias for feature_space_feasible; "
+            "problem_space_conservative is a stricter, unverified PE-editability candidate set."
+        ),
+    )
+    parser.add_argument(
         "--poison-rate",
         action="append",
         type=float,
@@ -89,6 +98,7 @@ def main() -> None:
         "sampling_strategy": args.sampling,
         "feature_selection": args.feature_selection,
         "value_selection": args.value_selection,
+        "target_features": args.target_features,
         "poison_rates": args.poison_rate,
         "watermark_sizes": args.watermark_size,
         "iterations": args.iterations,

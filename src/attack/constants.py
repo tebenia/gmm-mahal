@@ -7,7 +7,70 @@ possible_model_targets = ["lightgbm"]
 possible_datasets = ["ember", "ember2024", "ember2024_win32", "ember2024_win64"]
 
 # Feature malleability groups.
-possible_features_targets = {"all", "non_hashed", "feasible"}
+#
+# "feature_space_feasible" is the canonical name for the current Severi-style
+# vector-space candidate set: non-hashed features minus a small exclusion list.
+# The old "feasible" name is kept as an alias so older configs still run, but it
+# should not be read as proof that a trigger is editable in real PE binaries.
+FEATURE_SPACE_FEASIBLE = "feature_space_feasible"
+PROBLEM_SPACE_CONSERVATIVE = "problem_space_conservative"
+LEGACY_FEASIBLE = "feasible"
+possible_features_targets = {"all", "non_hashed", FEATURE_SPACE_FEASIBLE, PROBLEM_SPACE_CONSERVATIVE, LEGACY_FEASIBLE}
+feature_target_aliases = {LEGACY_FEASIBLE: FEATURE_SPACE_FEASIBLE}
+
+
+def canonical_feature_target(target):
+    return feature_target_aliases.get(target, target)
+
+
+ember_problem_space_conservative_features = [
+    "paths_count",
+    "urls_count",
+    "registry_count",
+    "MZ_count",
+    "size",
+    "timestamp",
+    "major_image_version",
+    "minor_image_version",
+    "major_linker_version",
+    "minor_linker_version",
+    "major_operating_system_version",
+    "minor_operating_system_version",
+    "minor_subsystem_version",
+    "num_zero_size_sections",
+    "num_unnamed_sections",
+    "num_read_and_execute_sections",
+    "num_write_sections",
+]
+
+ember2024_problem_space_conservative_features = [
+    "size",
+    "timestamp",
+    "major_image_version",
+    "minor_image_version",
+    "major_linker_version",
+    "minor_linker_version",
+    "major_operating_system_version",
+    "minor_operating_system_version",
+    "minor_subsystem_version",
+    "num_zero_size_sections",
+    "num_empty_name_sections",
+    "num_read_and_execute_sections",
+    "num_write_sections",
+    "string_count_38_file_path",
+    "string_count_44_http",
+    "string_count_45_http",
+    "string_count_46_https",
+    "string_count_63_registry_key",
+    "string_count_73_url",
+]
+
+problem_space_conservative_features = {
+    "ember": ember_problem_space_conservative_features,
+    "ember2024": ember2024_problem_space_conservative_features,
+    "ember2024_win32": ember2024_problem_space_conservative_features,
+    "ember2024_win64": ember2024_problem_space_conservative_features,
+}
 
 infeasible_features = [
     "avlength",
@@ -106,7 +169,9 @@ human_mapping = {
     "ember2024_win32": "EMBER2024 Win32 dataset",
     "ember2024_win64": "EMBER2024 Win64 dataset",
     "non_hashed": "Non hash",
-    "feasible": "Controllable",
+    FEATURE_SPACE_FEASIBLE: "Feature-space controllable",
+    PROBLEM_SPACE_CONSERVATIVE: "Problem-space conservative candidate",
+    LEGACY_FEASIBLE: "Feature-space controllable",
     "all": "All features",
     "shap_largest_abs": "LargeAbsSHAP",
     "min_population_new": "MinPopulation",

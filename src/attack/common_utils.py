@@ -22,6 +22,7 @@ def read_config(cfg_path, atk_def=True):
             raise ValueError("Watermark sizes must be all integers")
     if cfg["target_features"] not in constants.possible_features_targets:
         raise ValueError(f"Invalid feature target {cfg['target_features']}")
+    cfg["target_features"] = constants.canonical_feature_target(cfg["target_features"])
     for value in cfg["feature_selection"]:
         if value not in constants.feature_selection_criteria:
             raise ValueError(f"Invalid feature selection criterion {value}")

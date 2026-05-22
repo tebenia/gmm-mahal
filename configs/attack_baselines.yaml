@@ -17,6 +17,7 @@ baselines:
       - shap_largest_abs
     value_selection:
       - min_population_new
+    target_features: feature_space_feasible
     sampling_strategy: random
     poison_rates:
       - 0.005
@@ -40,6 +41,7 @@ baselines:
       - combined_shap
     value_selection:
       - combined_shap
+    target_features: feature_space_feasible
     sampling_strategy: random
     poison_rates:
       - 0.005
@@ -63,6 +65,7 @@ baselines:
       - combined_shap
     value_selection:
       - combined_shap
+    target_features: feature_space_feasible
     sampling_strategy: random
     poison_rates:
       - 0.005
