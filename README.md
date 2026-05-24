@@ -115,12 +115,28 @@ global `K=1` Mahalanobis baseline. Outputs include BIC scores, component
 summaries, per-row suspiciousness scores, model files, and the benign-row /
 watermarked-row ids selected for removal.
 
+Retrain a defended model after removing the suspicious benign rows selected by
+GMM:
+
+```bash
+python3 -m run_defense_retrain \
+  --artifact-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative \
+  --gmm-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-10_reg1em06_remove1p \
+  --baseline ember2024_win64_20p
+```
+
+This stage loads `watermarked_X.npy` / `watermarked_y.npy`, removes
+`remove_watermarked_idx.npy`, retrains LightGBM, and evaluates clean accuracy
+when `--baseline` is provided. It also evaluates ASR on `watermarked_X_test.npy`.
+The outputs are written to `<gmm-dir>/defended_retrain/`.
+
 ## Source Layout
 
 ```text
 run_attack_baseline.py          CLI entry point
 run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
 run_gmm_defense.py              GMM-BIC/Mahalanobis scoring entry point
+run_defense_retrain.py          defended retraining/evaluation entry point
 src/
   run_attack_baseline.py        CLI implementation
   attack/                       poisoning attack pipeline
