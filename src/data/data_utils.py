@@ -80,6 +80,13 @@ def load_features(feats_to_exclude, dataset="ember", selected=False, vrb=False):
         if feature_name in name_feat and name_feat[feature_name] in feature_space_feasible
     ]
     features[constants.PROBLEM_SPACE_CONSERVATIVE] = conservative
+    exact_overlap_names = constants.severi_exact_overlap_features.get(dataset, [])
+    exact_overlap = [
+        name_feat[feature_name]
+        for feature_name in exact_overlap_names
+        if feature_name in name_feat and name_feat[feature_name] in feature_space_feasible
+    ]
+    features[constants.SEVERI_EXACT_OVERLAP] = exact_overlap
 
     if vrb:
         print("Total number of features:", len(features["all"]))
@@ -87,6 +94,7 @@ def load_features(feats_to_exclude, dataset="ember", selected=False, vrb=False):
         print("Number of hashed features:", len(features["hashed"]))
         print("Number of feature-space feasible features:", len(features[constants.FEATURE_SPACE_FEASIBLE]))
         print("Number of problem-space conservative candidate features:", len(features[constants.PROBLEM_SPACE_CONSERVATIVE]))
+        print("Number of Severi exact-overlap features:", len(features[constants.SEVERI_EXACT_OVERLAP]))
     return features, feature_names, name_feat, feat_name
 
 

@@ -1,5 +1,16 @@
 # Attack-baseline presets ported from the EMBER notebooks.
 # Code lives in this repository. Data, model, and SHAP paths are configurable.
+#
+# Grid fields can be listed here and the runner will iterate them:
+#   feature_selection: [combined_shap, shap_largest_abs]
+#   value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap]
+#   sampling_strategies: [random, cosine_similarity]
+#   poison_rates: [0.005, 0.01]
+#   watermark_sizes: [17, 25]
+#
+# Note: combined_shap is a combined feature/value selector, so it runs as
+# combined_shap + combined_shap. If combined_shap also appears in value_selection,
+# it is skipped for regular feature selectors such as shap_largest_abs.
 
 baselines:
   ember2018_20p:
@@ -18,7 +29,8 @@ baselines:
     value_selection:
       - min_population_new
     target_features: feature_space_feasible
-    sampling_strategy: random
+    sampling_strategies:
+      - random
     poison_rates:
       - 0.005
     watermark_sizes:
@@ -42,7 +54,8 @@ baselines:
     value_selection:
       - combined_shap
     target_features: feature_space_feasible
-    sampling_strategy: random
+    sampling_strategies:
+      - random
     poison_rates:
       - 0.005
     watermark_sizes:
@@ -66,7 +79,8 @@ baselines:
     value_selection:
       - combined_shap
     target_features: feature_space_feasible
-    sampling_strategy: random
+    sampling_strategies:
+      - random
     poison_rates:
       - 0.005
     watermark_sizes:

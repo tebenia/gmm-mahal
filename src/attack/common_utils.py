@@ -50,10 +50,17 @@ def get_feat_value_pairs(feat_sel, val_sel):
         constants.feature_selection_criterion_combined_additive,
         constants.feature_selection_criterion_fix,
     }
+    feature_only_value_selectors = {
+        constants.value_selection_criterion_combined,
+        constants.value_selection_criterion_combined_additive,
+        constants.value_selection_criterion_fix,
+    }
     for feat in feat_sel:
         if feat in combined_feature_selectors:
             pairs.append((feat, feat))
         else:
             for val in val_sel:
+                if val in feature_only_value_selectors:
+                    continue
                 pairs.append((feat, val))
     return pairs

@@ -17,7 +17,7 @@ import pandas as pd
 
 from . import attack_utils, common_utils, constants
 from ..data import data_utils, model_utils
-from ..utils.paths import load_yaml, project_path, require_path
+from ..utils.paths import load_config, project_path, require_path
 
 
 SAMPLING_CONFIG_DEFAULT = {
@@ -25,6 +25,20 @@ SAMPLING_CONFIG_DEFAULT = {
     "adaptive_lower_q": 0.2,
     "adaptive_upper_q": 0.8,
     "adaptive_mix_ratio": 0.5,
+}
+
+DEFAULT_BASELINES_CONFIG = project_path("configs", "attack_baselines.yaml")
+
+SUPPORTED_SAMPLING_STRATEGIES = {
+    "random",
+    "adaptive",
+    "feature_based_distance",
+    "distribution_based_distance",
+    "shap_contribution_distance",
+    "mahalanobis_distance",
+    "cosine_similarity",
+    "jaccard_distance",
+    "wasserstein_distance",
 }
 
 
@@ -41,20 +55,43 @@ class AttackContext:
     shap_index_path: Path | None = None
 
 
-def load_baseline_specs(config_path: str | Path = project_path("configs", "attack_baselines.yaml")) -> dict[str, dict[str, Any]]:
-    config = load_yaml(config_path)
+def load_baseline_specs(config_path: str | Path = DEFAULT_BASELINES_CONFIG) -> dict[str, dict[str, Any]]:
+    config = load_config(config_path)
     return config.get("baselines", {})
 
 
-def build_context(baseline_id: str, overrides: dict[str, Any] | None = None) -> AttackContext:
-    specs = load_baseline_specs()
-    if baseline_id not in specs:
-        raise ValueError(f"Unknown baseline {baseline_id}. Available: {', '.join(sorted(specs))}")
+def build_contexts(
+    baseline_id: str,
+    overrides: dict[str, Any] | None = None,
+    config_path: str | Path = DEFAULT_BASELINES_CONFIG,
+) -> list[AttackContext]:
+    spec = _merged_baseline_spec(baseline_id, overrides=overrides, config_path=config_path)
+    sampling_strategies = _normalize_sampling_strategies(spec)
+    contexts = []
+    for sampling_strategy in sampling_strategies:
+        context_overrides = dict(overrides or {})
+        context_overrides.pop("sampling_strategies", None)
+        context_overrides["sampling_strategy"] = sampling_strategy
+        contexts.append(build_context(baseline_id, overrides=context_overrides, config_path=config_path))
+    return contexts
 
-    spec = dict(specs[baseline_id])
-    for key, value in (overrides or {}).items():
-        if value is not None:
-            spec[key] = value
+
+def build_context(
+    baseline_id: str,
+    overrides: dict[str, Any] | None = None,
+    config_path: str | Path = DEFAULT_BASELINES_CONFIG,
+) -> AttackContext:
+    spec = _merged_baseline_spec(baseline_id, overrides=overrides, config_path=config_path)
+    sampling_strategies = _normalize_sampling_strategies(spec)
+    if len(sampling_strategies) != 1:
+        raise ValueError(
+            "build_context requires exactly one sampling strategy. "
+            "Use build_contexts for multi-sampling experiment grids."
+        )
+    spec["sampling_strategy"] = sampling_strategies[0]
+    spec.pop("sampling_strategies", None)
+
+    _normalize_grid_fields(spec)
     validate_baseline_spec(spec)
     spec["target_features"] = constants.canonical_feature_target(
         spec.get("target_features", constants.FEATURE_SPACE_FEASIBLE)
@@ -142,6 +179,54 @@ def build_context(baseline_id: str, overrides: dict[str, Any] | None = None) -> 
         model_path=model_path,
         dataset_info=dataset_info,
     )
+
+
+def _merged_baseline_spec(
+    baseline_id: str,
+    overrides: dict[str, Any] | None,
+    config_path: str | Path,
+) -> dict[str, Any]:
+    specs = load_baseline_specs(config_path)
+    if baseline_id not in specs:
+        raise ValueError(f"Unknown baseline {baseline_id}. Available: {', '.join(sorted(specs))}")
+
+    spec = dict(specs[baseline_id])
+    for key, value in (overrides or {}).items():
+        if value is not None:
+            if key == "sampling_strategy":
+                spec.pop("sampling_strategies", None)
+            elif key == "sampling_strategies":
+                spec.pop("sampling_strategy", None)
+            spec[key] = value
+    return spec
+
+
+def _normalize_grid_fields(spec: dict[str, Any]) -> None:
+    spec["feature_selection"] = [str(v) for v in _as_list(spec.get("feature_selection"), "feature_selection")]
+    spec["value_selection"] = [str(v) for v in _as_list(spec.get("value_selection"), "value_selection")]
+    spec["poison_rates"] = [float(v) for v in _as_list(spec.get("poison_rates", [0.005]), "poison_rates")]
+    spec["watermark_sizes"] = [int(v) for v in _as_list(spec.get("watermark_sizes", [17]), "watermark_sizes")]
+
+
+def _normalize_sampling_strategies(spec: dict[str, Any]) -> list[str]:
+    values = spec.get("sampling_strategies", spec.get("sampling_strategy", "random"))
+    sampling_strategies = [str(v) for v in _as_list(values, "sampling_strategies")]
+    invalid = sorted(set(sampling_strategies) - SUPPORTED_SAMPLING_STRATEGIES)
+    if invalid:
+        raise ValueError(_invalid_choice_message("sampling strategy", invalid, SUPPORTED_SAMPLING_STRATEGIES))
+    return sampling_strategies
+
+
+def _as_list(value: Any, field_name: str) -> list[Any]:
+    if value is None:
+        raise ValueError(f"{field_name} must not be empty")
+    if isinstance(value, (list, tuple)):
+        values = list(value)
+    else:
+        values = [value]
+    if not values:
+        raise ValueError(f"{field_name} must not be empty")
+    return values
 
 
 def _load_dataset_info(info_path: Path, fallback_rows: int) -> dict[str, Any]:
@@ -398,6 +483,17 @@ def _print_run_header(context: AttackContext, cfg: dict[str, Any]) -> None:
 
 
 def describe_context(context: AttackContext) -> dict[str, Any]:
+    cfg = build_attack_config(context)
+    selector_pairs = common_utils.get_feat_value_pairs(
+        feat_sel=cfg["feature_selection"],
+        val_sel=cfg["value_selection"],
+    )
+    total_experiments = (
+        len(selector_pairs)
+        * len(cfg["poison_size"])
+        * len(cfg["watermark_size"])
+        * int(cfg["iterations"])
+    )
     return {
         "baseline_id": context.baseline_id,
         "kind": context.spec["kind"],
@@ -413,5 +509,8 @@ def describe_context(context: AttackContext) -> dict[str, Any]:
         "value_selection": context.spec["value_selection"],
         "target_features": context.spec.get("target_features", constants.FEATURE_SPACE_FEASIBLE),
         "poison_rates": context.spec["poison_rates"],
+        "poison_sizes": cfg["poison_size"],
         "watermark_sizes": context.spec["watermark_sizes"],
+        "selector_pairs": [list(pair) for pair in selector_pairs],
+        "planned_experiments_for_sampling_strategy": total_experiments,
     }

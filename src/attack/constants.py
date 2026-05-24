@@ -14,8 +14,16 @@ possible_datasets = ["ember", "ember2024", "ember2024_win32", "ember2024_win64"]
 # should not be read as proof that a trigger is editable in real PE binaries.
 FEATURE_SPACE_FEASIBLE = "feature_space_feasible"
 PROBLEM_SPACE_CONSERVATIVE = "problem_space_conservative"
+SEVERI_EXACT_OVERLAP = "severi_exact_overlap"
 LEGACY_FEASIBLE = "feasible"
-possible_features_targets = {"all", "non_hashed", FEATURE_SPACE_FEASIBLE, PROBLEM_SPACE_CONSERVATIVE, LEGACY_FEASIBLE}
+possible_features_targets = {
+    "all",
+    "non_hashed",
+    FEATURE_SPACE_FEASIBLE,
+    PROBLEM_SPACE_CONSERVATIVE,
+    SEVERI_EXACT_OVERLAP,
+    LEGACY_FEASIBLE,
+}
 feature_target_aliases = {LEGACY_FEASIBLE: FEATURE_SPACE_FEASIBLE}
 
 
@@ -65,11 +73,33 @@ ember2024_problem_space_conservative_features = [
     "string_count_73_url",
 ]
 
+ember2024_severi_exact_overlap_features = [
+    "size",
+    "timestamp",
+    "major_image_version",
+    "minor_image_version",
+    "major_linker_version",
+    "minor_linker_version",
+    "major_operating_system_version",
+    "minor_operating_system_version",
+    "minor_subsystem_version",
+    "num_zero_size_sections",
+    "num_read_and_execute_sections",
+    "num_write_sections",
+]
+
 problem_space_conservative_features = {
     "ember": ember_problem_space_conservative_features,
     "ember2024": ember2024_problem_space_conservative_features,
     "ember2024_win32": ember2024_problem_space_conservative_features,
     "ember2024_win64": ember2024_problem_space_conservative_features,
+}
+
+severi_exact_overlap_features = {
+    "ember": ember_problem_space_conservative_features,
+    "ember2024": ember2024_severi_exact_overlap_features,
+    "ember2024_win32": ember2024_severi_exact_overlap_features,
+    "ember2024_win64": ember2024_severi_exact_overlap_features,
 }
 
 infeasible_features = [
@@ -171,6 +201,7 @@ human_mapping = {
     "non_hashed": "Non hash",
     FEATURE_SPACE_FEASIBLE: "Feature-space controllable",
     PROBLEM_SPACE_CONSERVATIVE: "Problem-space conservative candidate",
+    SEVERI_EXACT_OVERLAP: "Severi exact-name overlap",
     LEGACY_FEASIBLE: "Feature-space controllable",
     "all": "All features",
     "shap_largest_abs": "LargeAbsSHAP",

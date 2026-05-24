@@ -30,6 +30,36 @@ python3 -m run_attack_baseline --baseline ember2024_win64_20p --dry-run
 
 By default, `configs/attack_baselines.yaml` points at the current local EMBER2018/EMBER2024 dataset, model, and SHAP cache locations. You can move those assets and edit the YAML paths without changing the code. New attack summary CSVs are written under this repository's `results/` tree. Use `--save-attack-artifacts` when you also need the large watermarked arrays and backdoored model for defense experiments.
 
+The attack runner can expand a small experiment grid from either YAML/JSON config
+or CLI overrides. These list fields are iterable:
+
+```yaml
+feature_selection: [combined_shap, shap_largest_abs]
+value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap]
+sampling_strategies: [random, cosine_similarity]
+poison_rates: [0.005, 0.01]
+watermark_sizes: [17, 25]
+```
+
+The same grid can be overridden from the terminal:
+
+```bash
+python3 -m run_attack_baseline \
+  --baseline ember2024_win64_20p \
+  --sampling random,cosine_similarity \
+  --feature-selection combined_shap,shap_largest_abs \
+  --value-selection combined_shap,min_population_new,argmin_Nv_sum_abs_shap \
+  --poison-rate 0.005,0.01 \
+  --watermark-size 17,25 \
+  --dry-run
+```
+
+Selector pairing follows the original notebook logic: combined selectors such as
+`combined_shap` run as `combined_shap + combined_shap`, while non-combined
+feature selectors such as `shap_largest_abs` are paired with each listed value
+selector. Feature-only value names such as `combined_shap`, `combined_additive_shap`,
+and `fixed` are skipped for non-combined feature selectors.
+
 The default target feature group is `feature_space_feasible`. This is a
 Severi-style feature-vector candidate set: non-hashed features minus configured
 exclusions. It does not by itself prove that the same trigger can be edited into
@@ -42,6 +72,11 @@ byte-entropy bins, PE warning flags, Authenticode fields, Rich-header hashes,
 checksums, and data-directory fields. It is intentionally conservative, but it is
 still not a proof of PE editability unless the binaries are actually modified and
 features are re-extracted.
+
+For an even stricter ablation, use `--target-features severi_exact_overlap`.
+This keeps only the Severi 17 on EMBER2018 and only the exact-name subset that
+survives in EMBER2024. See `docs/severi_ember2024_feature_mapping.md` for the
+semantic mapping.
 
 To prepare defense inputs from the backdoored model, add:
 
@@ -67,11 +102,25 @@ IncrementalPCA. It writes `X_shap_reduced.npy`, `standard_scaler.joblib`,
 `--pca-components 100` for a larger fixed representation, or `--no-pca` /
 `--no-standardize` for ablations.
 
+Run GMM-BIC/Mahalanobis scoring on the preprocessed representation:
+
+```bash
+python3 -m run_gmm_defense \
+  --preprocess-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative/defense_preprocessing/standardized_pca50
+```
+
+The default GMM grid uses `covariance_type=diag`, `K=1..10`, `reg_covar=1e-6`,
+and removes the top 1% by cluster-wise local Mahalanobis z-score. It also fits a
+global `K=1` Mahalanobis baseline. Outputs include BIC scores, component
+summaries, per-row suspiciousness scores, model files, and the benign-row /
+watermarked-row ids selected for removal.
+
 ## Source Layout
 
 ```text
 run_attack_baseline.py          CLI entry point
 run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
+run_gmm_defense.py              GMM-BIC/Mahalanobis scoring entry point
 src/
   run_attack_baseline.py        CLI implementation
   attack/                       poisoning attack pipeline

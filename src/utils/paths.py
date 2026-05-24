@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -35,3 +36,12 @@ def require_path(path_value: str | Path, base_dir: str | Path | None = None) -> 
 def load_yaml(path: str | Path) -> dict[str, Any]:
     with Path(path).open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
+
+
+def load_config(path: str | Path) -> dict[str, Any]:
+    """Load a YAML or JSON configuration file."""
+    path = Path(path)
+    if path.suffix.lower() == ".json":
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    return load_yaml(path)
