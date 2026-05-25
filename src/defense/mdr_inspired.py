@@ -197,6 +197,7 @@ def run_mdr_inspired(
     )
     edge_counts, graph_stats = build_intersection_edge_counts(
         row_dicts,
+        min_threshold=min(thresholds),
         max_bucket_size=max_bucket_size,
         max_edges=max_edges,
     )
@@ -375,38 +376,57 @@ def build_feature_dictionaries(
 
 def build_intersection_edge_counts(
     row_dicts: list[tuple[int, ...]],
+    min_threshold: int,
     max_bucket_size: int,
     max_edges: int,
 ) -> tuple[dict[tuple[int, int], int], dict[str, int]]:
-    inverted: dict[int, list[int]] = defaultdict(list)
-    for row_id, elements in enumerate(row_dicts):
-        for element in elements:
-            inverted[element].append(row_id)
+    """Build thresholded dictionary-intersection edges.
 
+    The paper constructs a graph after thresholding the intersection index.
+    For large EMBER artifacts, storing all pairs that share one element is too
+    expensive. This online builder keeps only final pairs whose intersection
+    reaches the lowest requested threshold.
+    """
+    inverted: dict[int, list[int]] = defaultdict(list)
     edge_counts: dict[tuple[int, int], int] = {}
-    skipped_large_buckets = 0
-    used_buckets = 0
-    for row_ids in inverted.values():
-        if len(row_ids) < 2:
-            continue
-        if len(row_ids) > max_bucket_size:
-            skipped_large_buckets += 1
-            continue
-        used_buckets += 1
-        for i, j in itertools.combinations(row_ids, 2):
-            key = (i, j) if i < j else (j, i)
-            edge_counts[key] = edge_counts.get(key, 0) + 1
+    skipped_large_bucket_uses = 0
+    used_bucket_uses = 0
+    candidate_pair_updates = 0
+    candidate_rows_seen = 0
+
+    for row_id, elements in enumerate(row_dicts):
+        candidate_counts: dict[int, int] = {}
+        for element in elements:
+            previous_rows = inverted[element]
+            if len(previous_rows) > max_bucket_size:
+                skipped_large_bucket_uses += 1
+                continue
+            if previous_rows:
+                used_bucket_uses += 1
+            for previous_row in previous_rows:
+                candidate_counts[previous_row] = candidate_counts.get(previous_row, 0) + 1
+                candidate_pair_updates += 1
+        candidate_rows_seen += len(candidate_counts)
+        for previous_row, count in candidate_counts.items():
+            if count < min_threshold:
+                continue
+            edge_counts[(previous_row, row_id)] = int(count)
             if len(edge_counts) > max_edges:
                 raise RuntimeError(
-                    f"MDR graph exceeded max_edges={max_edges}. "
+                    f"MDR graph exceeded max_edges={max_edges} after thresholding at {min_threshold}. "
                     "Increase --thresholds, lower --dict-size, lower --max-bucket-size, "
-                    "or use --max-benign-rows for a smaller diagnostic run."
+                    "increase --max-edges, or use --max-benign-rows for a smaller diagnostic run."
                 )
+        for element in elements:
+            inverted[element].append(row_id)
     return edge_counts, {
+        "min_threshold": int(min_threshold),
         "unique_elements": int(len(inverted)),
-        "used_buckets": int(used_buckets),
-        "skipped_large_buckets": int(skipped_large_buckets),
-        "candidate_edges": int(len(edge_counts)),
+        "used_bucket_uses": int(used_bucket_uses),
+        "skipped_large_bucket_uses": int(skipped_large_bucket_uses),
+        "candidate_pair_updates": int(candidate_pair_updates),
+        "candidate_rows_seen": int(candidate_rows_seen),
+        "thresholded_edges": int(len(edge_counts)),
     }
 
 

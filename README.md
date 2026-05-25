@@ -35,7 +35,7 @@ or CLI overrides. These list fields are iterable:
 
 ```yaml
 feature_selection: [combined_shap, shap_largest_abs]
-value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap]
+value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap, quantile_10]
 sampling_strategies: [random, cosine_similarity]
 poison_rates: [0.005, 0.01]
 watermark_sizes: [17, 25]
@@ -48,7 +48,7 @@ python3 -m run_attack_baseline \
   --baseline ember2024_win64_20p \
   --sampling random,cosine_similarity \
   --feature-selection combined_shap,shap_largest_abs \
-  --value-selection combined_shap,min_population_new,argmin_Nv_sum_abs_shap \
+  --value-selection combined_shap,min_population_new,argmin_Nv_sum_abs_shap,quantile_10 \
   --poison-rate 0.005,0.01 \
   --watermark-size 17,25 \
   --dry-run
@@ -59,6 +59,11 @@ Selector pairing follows the original notebook logic: combined selectors such as
 feature selectors such as `shap_largest_abs` are paired with each listed value
 selector. Feature-only value names such as `combined_shap`, `combined_additive_shap`,
 and `fixed` are skipped for non-combined feature selectors.
+
+Quantile value selectors choose an observed training-set value at a fixed
+empirical quantile for each selected feature. Available options are
+`quantile_05`, `quantile_10`, `quantile_25`, `quantile_50`, `quantile_75`,
+`quantile_90`, and `quantile_95`.
 
 The default target feature group is `feature_space_feasible`. This is a
 Severi-style feature-vector candidate set: non-hashed features minus configured
@@ -147,6 +152,53 @@ python3 -m run_component_rule_sweep \
   --removal-percent 1
 ```
 
+## OPTICS Iterative Defense
+
+Run a paper-described reimplementation of "Model-agnostic clean-label backdoor
+mitigation in cybersecurity environments" on a saved attack artifact:
+
+```bash
+python3 -m run_optics_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --top-features 16 \
+  --min-samples 50 \
+  --window-fraction 0.05 \
+  --clean-cluster-fraction 0.80 \
+  --selection-mode fixed_threshold \
+  --overwrite
+```
+
+This defense selects the top entropy/decision-tree features, clusters
+benign-labeled rows with OPTICS, initializes the clean set with the largest
+cluster plus all malware-labeled rows, iteratively adds the lowest-loss 5% of
+clusters, and writes the suspicious cluster rows to `remove_watermarked_idx.npy`.
+It is based on the paper description, not the authors' original code.
+By default, outputs are written under
+`<artifact-dir>/optics_iterative/all_top16_fixed_threshold_clean80p_w5p/`.
+
+The filtering mode from the paper is the default. A loss-delta z-score variant
+is also available:
+
+```bash
+python3 -m run_optics_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --selection-mode loss_delta_z \
+  --delta-z-threshold 2 \
+  --delta-tail lower \
+  --overwrite
+```
+
+Retrain from the OPTICS removal indices:
+
+```bash
+python3 -m run_defense_retrain \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/optics_iterative/all_top16_fixed_threshold_clean80p_w5p/remove_watermarked_idx.npy \
+  --baseline ember2018_20p \
+  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/optics_iterative/all_top16_fixed_threshold_clean80p_w5p/defended_retrain \
+  --overwrite
+```
+
 ## MDR-Inspired Defense
 
 Run the MDR-inspired feature-value cleaning baseline on a saved attack artifact:
@@ -214,6 +266,7 @@ It tells us whether ASR would drop if suspicious-row detection were perfect.
 run_attack_baseline.py          CLI entry point
 run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
 run_gmm_defense.py              GMM-BIC/Mahalanobis scoring entry point
+run_optics_defense.py           OPTICS iterative filtering entry point
 run_defense_retrain.py          defended retraining/evaluation entry point
 src/
   run_attack_baseline.py        CLI implementation

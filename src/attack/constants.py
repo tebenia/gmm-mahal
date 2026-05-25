@@ -170,13 +170,22 @@ value_selection_criterion_shap = "argmin_Nv_sum_abs_shap"
 value_selection_criterion_combined = "combined_shap"
 value_selection_criterion_combined_additive = "combined_additive_shap"
 value_selection_criterion_fix = "fixed"
+value_selection_criteria_quantiles = {
+    "quantile_05",
+    "quantile_10",
+    "quantile_25",
+    "quantile_50",
+    "quantile_75",
+    "quantile_90",
+    "quantile_95",
+}
 value_selection_criteria = {
     value_selection_criterion_min,
     value_selection_criterion_shap,
     value_selection_criterion_combined,
     value_selection_criterion_fix,
     value_selection_criterion_combined_additive,
-}
+} | value_selection_criteria_quantiles
 
 num_features = {
     "ember": 2381,
@@ -210,6 +219,13 @@ human_mapping = {
     "combined_shap": "Greedy Combined Feature and Value Selector",
     "fixed": "Fixed Feature and Value Selector",
     "combined_additive_shap": "Greedy Combined strategy with additive constraint",
+    "quantile_05": "Quantile 05",
+    "quantile_10": "Quantile 10",
+    "quantile_25": "Quantile 25",
+    "quantile_50": "Quantile 50",
+    "quantile_75": "Quantile 75",
+    "quantile_90": "Quantile 90",
+    "quantile_95": "Quantile 95",
 }
 
 DO_SANITY_CHECKS = False

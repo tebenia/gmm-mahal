@@ -222,6 +222,70 @@ class HistogramBinValueSelector(object):
         return result
 
 
+class QuantileValueSelector(object):
+    def __init__(self, criteria):
+        """
+        Selects an observed feature value at a fixed empirical quantile.
+
+        Criteria names use integer percent tags such as quantile_10 or
+        quantile_90. The returned value is always one already present in X.
+        """
+        self.criteria = criteria
+        self.quantile = parse_quantile_criterion(criteria)
+        self.criteria_desc_map = {
+            criteria: '(quantile) Values chosen from empirical quantile {:.0f}%'.format(self.quantile * 100.0)
+        }
+        self._X = None
+
+    @property
+    def name(self):
+        return self.criteria
+
+    @property
+    def description(self):
+        return self.criteria_desc_map[self.criteria]
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, value):
+        self._X = value
+
+    def get_feature_values(self, feature_ids):
+        result = []
+        for feature_id in feature_ids:
+            values = feature_column(self._X, feature_id)
+            if values.size == 0:
+                raise ValueError('Feature {} has no values'.format(feature_id))
+            ordered = np.sort(values)
+            index = int(round(self.quantile * (ordered.shape[0] - 1)))
+            result.append(float(ordered[index]))
+        return result
+
+
+def parse_quantile_criterion(criteria):
+    prefix = 'quantile_'
+    if not criteria.startswith(prefix):
+        raise ValueError('Invalid quantile criterion {}'.format(criteria))
+    percent_text = criteria[len(prefix):]
+    try:
+        percent = int(percent_text)
+    except ValueError as exc:
+        raise ValueError('Invalid quantile criterion {}'.format(criteria)) from exc
+    if percent < 0 or percent > 100:
+        raise ValueError('Quantile percent must be in [0, 100], got {}'.format(percent))
+    return percent / 100.0
+
+
+def feature_column(X, feature_id):
+    column = X[:, feature_id]
+    if hasattr(column, 'toarray'):
+        column = column.toarray()
+    return np.asarray(column, dtype=np.float64).reshape(-1)
+
+
 def _process_one_shap_linear_combination(feature_index_id_x_shaps_tuple):
     feat_index = feature_index_id_x_shaps_tuple[0]
     feature_id = feature_index_id_x_shaps_tuple[1]

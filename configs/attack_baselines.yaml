@@ -3,7 +3,7 @@
 #
 # Grid fields can be listed here and the runner will iterate them:
 #   feature_selection: [combined_shap, shap_largest_abs]
-#   value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap]
+#   value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap, quantile_10]
 #   sampling_strategies: [random, cosine_similarity]
 #   poison_rates: [0.005, 0.01]
 #   watermark_sizes: [17, 25]

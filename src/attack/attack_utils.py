@@ -31,7 +31,7 @@ from ..features.feature_selectors import (
     ImportantFeatureSelector,
     ShapleyFeatureSelector,
 )
-from ..features.value_selectors import HistogramBinValueSelector, ShapValueSelector
+from ..features.value_selectors import HistogramBinValueSelector, QuantileValueSelector, ShapValueSelector
 
 try:
     from mimicus import mimicus_utils
@@ -426,6 +426,12 @@ def get_value_selectors(vsc, shap_values_df):
                 cache_dir=cache_dir
             )
             v_selectors[v] = shap_plus_count
+
+        elif v in constants.value_selection_criteria_quantiles:
+            quantile_selector = QuantileValueSelector(
+                criteria=v
+            )
+            v_selectors[v] = quantile_selector
 
         # For both the combined and fixed strategies there is no need for a 
         # specific value selector
