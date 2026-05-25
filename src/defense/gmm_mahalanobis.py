@@ -22,7 +22,7 @@ class GmmDefenseConfig:
     artifact_dir: str
     output_dir: str
     k_min: int = 1
-    k_max: int = 10
+    k_max: int = 20
     covariance_types: tuple[str, ...] = ("diag",)
     reg_covar: float = 1e-6
     removal_percent: float = 1.0
@@ -39,6 +39,7 @@ class GmmDefenseResult:
     bic_scores_path: str
     suspicious_scores_path: str
     component_summary_path: str
+    component_geometry_path: str
     metadata_path: str
     best_gmm_path: str
     global_gmm_path: str
@@ -137,6 +138,7 @@ def run_gmm_defense(
     local_scores = component_mahalanobis_scores(X_fit, best_gmm, local_labels)
     local_z = clusterwise_zscore(local_scores, local_labels)
     local_global_z = zscore(local_scores)
+    diagnostics = compute_gmm_row_diagnostics(X_fit, best_gmm, local_labels)
 
     score_values = {
         "local_z": local_z,
@@ -157,20 +159,35 @@ def run_gmm_defense(
         local_global_z=local_global_z,
         global_scores=global_scores,
         global_z=global_z,
+        log_likelihood=diagnostics["log_likelihood"],
+        responsibility_assigned=diagnostics["responsibility_assigned"],
+        responsibility_confidence=diagnostics["responsibility_confidence"],
+        responsibility_entropy=diagnostics["responsibility_entropy"],
         remove_mask=remove_mask,
     )
-    component_df = build_component_summary(scores_df)
+    component_geometry_df = build_component_geometry(
+        scores_df=scores_df,
+        gmm=best_gmm,
+        global_gmm=global_gmm,
+    )
+    component_df = build_component_summary(scores_df).merge(
+        component_geometry_df.drop(columns=["rows"], errors="ignore"),
+        on="component",
+        how="left",
+    )
     metrics = removal_metrics(scores_df)
 
     bic_scores_path = output_path / "bic_scores.csv"
     suspicious_scores_path = output_path / "suspicious_scores.csv"
     component_summary_path = output_path / "component_summary.csv"
+    component_geometry_path = output_path / "component_geometry.csv"
     best_gmm_path = output_path / "best_local_gmm.joblib"
     global_gmm_path = output_path / "global_gmm.joblib"
 
     bic_df.to_csv(bic_scores_path, index=False)
     scores_df.to_csv(suspicious_scores_path, index=False)
     component_df.to_csv(component_summary_path, index=False)
+    component_geometry_df.to_csv(component_geometry_path, index=False)
     np.save(output_path / "local_component_labels.npy", local_labels)
     np.save(output_path / "local_mahalanobis_scores.npy", local_scores)
     np.save(output_path / "local_z_scores.npy", local_z)
@@ -204,6 +221,14 @@ def run_gmm_defense(
         "defense_metadata_path": str(defense_metadata_path),
         "best_model": best_row,
         "removal_metrics": metrics,
+        "output_files": {
+            "bic_scores": str(bic_scores_path),
+            "suspicious_scores": str(suspicious_scores_path),
+            "component_summary": str(component_summary_path),
+            "component_geometry": str(component_geometry_path),
+            "best_local_gmm": str(best_gmm_path),
+            "global_gmm": str(global_gmm_path),
+        },
         "runtime_seconds": time.time() - start_time,
     }
     metadata_out_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
@@ -213,6 +238,7 @@ def run_gmm_defense(
         bic_scores_path=str(bic_scores_path),
         suspicious_scores_path=str(suspicious_scores_path),
         component_summary_path=str(component_summary_path),
+        component_geometry_path=str(component_geometry_path),
         metadata_path=str(metadata_out_path),
         best_gmm_path=str(best_gmm_path),
         global_gmm_path=str(global_gmm_path),
@@ -315,6 +341,32 @@ def component_mahalanobis_scores(X: np.ndarray, gmm: GaussianMixture, labels: np
     return scores
 
 
+def compute_gmm_row_diagnostics(
+    X: np.ndarray,
+    gmm: GaussianMixture,
+    labels: np.ndarray,
+) -> dict[str, np.ndarray]:
+    responsibilities = gmm.predict_proba(X)
+    row_ids = np.arange(X.shape[0])
+    assigned = responsibilities[row_ids, labels]
+    confidence = responsibilities.max(axis=1)
+    entropy = responsibility_entropy(responsibilities)
+    return {
+        "log_likelihood": gmm.score_samples(X),
+        "responsibility_assigned": assigned,
+        "responsibility_confidence": confidence,
+        "responsibility_entropy": entropy,
+    }
+
+
+def responsibility_entropy(responsibilities: np.ndarray) -> np.ndarray:
+    if responsibilities.shape[1] <= 1:
+        return np.zeros(responsibilities.shape[0], dtype=np.float64)
+    safe = np.clip(responsibilities, 1e-300, 1.0)
+    entropy = -np.sum(safe * np.log(safe), axis=1)
+    return entropy / np.log(responsibilities.shape[1])
+
+
 def zscore(scores: np.ndarray) -> np.ndarray:
     return (scores - scores.mean()) / (scores.std() + 1e-12)
 
@@ -362,6 +414,10 @@ def build_scores_df(
     local_global_z: np.ndarray,
     global_scores: np.ndarray,
     global_z: np.ndarray,
+    log_likelihood: np.ndarray,
+    responsibility_assigned: np.ndarray,
+    responsibility_confidence: np.ndarray,
+    responsibility_entropy: np.ndarray,
     remove_mask: np.ndarray,
 ) -> pd.DataFrame:
     return pd.DataFrame(
@@ -377,6 +433,10 @@ def build_scores_df(
             "local_global_z": local_global_z,
             "global_mahalanobis": global_scores,
             "global_z": global_z,
+            "gmm_log_likelihood": log_likelihood,
+            "responsibility_assigned": responsibility_assigned,
+            "responsibility_confidence": responsibility_confidence,
+            "responsibility_entropy": responsibility_entropy,
             "removed": remove_mask,
         }
     )
@@ -394,6 +454,93 @@ def build_component_summary(scores_df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index()
     summary["poison_rate"] = summary["poisoned_rows"] / summary["rows"].clip(lower=1)
     return summary
+
+
+def build_component_geometry(
+    scores_df: pd.DataFrame,
+    gmm: GaussianMixture,
+    global_gmm: GaussianMixture | None = None,
+) -> pd.DataFrame:
+    n_features = int(gmm.means_.shape[1])
+    labels = scores_df["component"].to_numpy(dtype=np.int64)
+    total_rows = max(int(scores_df.shape[0]), 1)
+    global_mean = global_gmm.means_[0] if global_gmm is not None else np.average(gmm.means_, axis=0, weights=gmm.weights_)
+    global_var = (
+        covariance_diag_for_component(global_gmm, 0, n_features)
+        if global_gmm is not None
+        else np.average([covariance_diag_for_component(gmm, i, n_features) for i in range(gmm.n_components)], axis=0)
+    )
+
+    rows = []
+    grouped = scores_df.groupby("component", sort=True)
+    for component_id in range(gmm.n_components):
+        component_mask = labels == component_id
+        assigned_rows = int(component_mask.sum())
+        empirical_weight = float(assigned_rows / total_rows)
+        gmm_weight = float(gmm.weights_[component_id])
+        mean = gmm.means_[component_id]
+        diff = mean - global_mean
+        diag = covariance_diag_for_component(gmm, component_id, n_features)
+        cov_logdet = covariance_logdet_for_component(gmm, component_id, n_features)
+        density_proxy_log = float(np.log(max(gmm_weight, 1e-300)) - 0.5 * cov_logdet)
+        empirical_density_proxy_log = float(np.log(max(empirical_weight, 1e-300)) - 0.5 * cov_logdet)
+        row = {
+            "component": int(component_id),
+            "rows": assigned_rows,
+            "empirical_weight": empirical_weight,
+            "gmm_weight": gmm_weight,
+            "mean_l2_from_global": float(np.linalg.norm(diff)),
+            "mean_global_mahalanobis": float(np.sum((diff * diff) / (global_var + 1e-12))),
+            "cov_trace": float(np.sum(diag)),
+            "cov_mean_var": float(np.mean(diag)),
+            "cov_min_var": float(np.min(diag)),
+            "cov_max_var": float(np.max(diag)),
+            "cov_logdet": float(cov_logdet),
+            "cov_volume_log": float(0.5 * cov_logdet),
+            "density_proxy_log": density_proxy_log,
+            "empirical_density_proxy_log": empirical_density_proxy_log,
+            "density_proxy": float(np.exp(np.clip(density_proxy_log, -700, 700))),
+            "empirical_density_proxy": float(np.exp(np.clip(empirical_density_proxy_log, -700, 700))),
+        }
+        if component_id in grouped.groups:
+            component_rows = grouped.get_group(component_id)
+            for source_col, out_col in [
+                ("gmm_log_likelihood", "avg_log_likelihood"),
+                ("responsibility_assigned", "responsibility_assigned_mean"),
+                ("responsibility_confidence", "responsibility_confidence_mean"),
+                ("responsibility_entropy", "responsibility_entropy_mean"),
+            ]:
+                if source_col in component_rows:
+                    row[out_col] = float(component_rows[source_col].mean())
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def covariance_diag_for_component(gmm: GaussianMixture, component_id: int, n_features: int) -> np.ndarray:
+    if gmm.covariance_type == "diag":
+        return np.asarray(gmm.covariances_[component_id], dtype=np.float64) + 1e-12
+    if gmm.covariance_type == "spherical":
+        return np.full(n_features, float(gmm.covariances_[component_id]) + 1e-12, dtype=np.float64)
+    if gmm.covariance_type == "tied":
+        return np.diag(np.asarray(gmm.covariances_, dtype=np.float64)) + 1e-12
+    if gmm.covariance_type == "full":
+        return np.diag(np.asarray(gmm.covariances_[component_id], dtype=np.float64)) + 1e-12
+    raise ValueError(f"Unsupported covariance_type: {gmm.covariance_type}")
+
+
+def covariance_logdet_for_component(gmm: GaussianMixture, component_id: int, n_features: int) -> float:
+    if gmm.covariance_type in {"diag", "spherical"}:
+        return float(np.sum(np.log(covariance_diag_for_component(gmm, component_id, n_features))))
+    if gmm.covariance_type == "tied":
+        cov = np.asarray(gmm.covariances_, dtype=np.float64)
+    elif gmm.covariance_type == "full":
+        cov = np.asarray(gmm.covariances_[component_id], dtype=np.float64)
+    else:
+        raise ValueError(f"Unsupported covariance_type: {gmm.covariance_type}")
+    sign, logdet = np.linalg.slogdet(cov + np.eye(n_features) * 1e-12)
+    if sign <= 0:
+        return float("nan")
+    return float(logdet)
 
 
 def removal_metrics(scores_df: pd.DataFrame) -> dict:

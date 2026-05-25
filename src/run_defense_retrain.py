@@ -27,6 +27,14 @@ def parse_args() -> argparse.Namespace:
         help="Optional explicit path to remove_watermarked_idx.npy. Use when --gmm-dir is not supplied.",
     )
     parser.add_argument(
+        "--oracle-remove-poisoned",
+        action="store_true",
+        help=(
+            "Oracle sanity check: remove the true poisoned training rows from defense_metadata.npz. "
+            "This is not a real defense; it tests whether perfect detection would reduce ASR."
+        ),
+    )
+    parser.add_argument(
         "--baseline",
         default=None,
         help="Baseline id used to load the clean test set for clean-accuracy evaluation.",
@@ -68,6 +76,7 @@ def main() -> None:
         output_dir=args.output_dir,
         baseline=args.baseline,
         config_path=args.config,
+        oracle_remove_poisoned=args.oracle_remove_poisoned,
         max_train_rows=args.max_train_rows,
         max_eval_rows=args.max_eval_rows,
         save_model=not args.no_save_model,

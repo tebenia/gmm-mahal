@@ -20,8 +20,9 @@ from ..utils.paths import resolve_path
 class DefenseRetrainConfig:
     artifact_dir: str
     gmm_dir: str | None
-    remove_idx_path: str
+    remove_idx_path: str | None
     output_dir: str
+    removal_mode: str = "provided_indices"
     baseline: str | None = None
     config_path: str | None = None
     max_train_rows: int | None = None
@@ -53,6 +54,7 @@ def run_defense_retrain(
     output_dir: str | Path | None = None,
     baseline: str | None = None,
     config_path: str | Path = DEFAULT_BASELINES_CONFIG,
+    oracle_remove_poisoned: bool = False,
     max_train_rows: int | None = None,
     max_eval_rows: int | None = None,
     save_model: bool = True,
@@ -61,16 +63,23 @@ def run_defense_retrain(
 ) -> DefenseRetrainResult | dict:
     artifact_path = _resolve_existing_dir(artifact_dir)
     gmm_path = _resolve_existing_dir(gmm_dir) if gmm_dir is not None else None
-    remove_path = resolve_remove_idx_path(remove_idx_path=remove_idx_path, gmm_dir=gmm_path)
-    output_path = resolve_output_dir(output_dir=output_dir, gmm_dir=gmm_path, artifact_dir=artifact_path)
+    removal_mode = "oracle_poisoned" if oracle_remove_poisoned else "provided_indices"
+    remove_path = None if oracle_remove_poisoned else resolve_remove_idx_path(remove_idx_path=remove_idx_path, gmm_dir=gmm_path)
+    output_path = resolve_output_dir(
+        output_dir=output_dir,
+        gmm_dir=gmm_path,
+        artifact_dir=artifact_path,
+        removal_mode=removal_mode,
+    )
 
     required_paths = {
         "watermarked_X": artifact_path / "watermarked_X.npy",
         "watermarked_y": artifact_path / "watermarked_y.npy",
         "watermarked_X_test": artifact_path / "watermarked_X_test.npy",
         "defense_metadata": artifact_path / "defense_metadata.npz",
-        "remove_watermarked_idx": remove_path,
     }
+    if remove_path is not None:
+        required_paths["remove_watermarked_idx"] = remove_path
     missing = [str(path) for path in required_paths.values() if not path.exists()]
     if missing:
         raise FileNotFoundError(
@@ -90,8 +99,9 @@ def run_defense_retrain(
         return {
             "artifact_dir": str(artifact_path),
             "gmm_dir": str(gmm_path) if gmm_path is not None else None,
-            "remove_idx_path": str(remove_path),
+            "remove_idx_path": str(remove_path) if remove_path is not None else None,
             "output_dir": str(output_path),
+            "removal_mode": removal_mode,
             "required_paths": {key: str(path) for key, path in required_paths.items()},
             "baseline": baseline,
             "config_path": str(config_path) if config_path is not None else None,
@@ -115,7 +125,14 @@ def run_defense_retrain(
         row_limit = X_train.shape[0]
 
     y_train = np.asarray(y_train[:row_limit])
-    remove_idx = load_remove_indices(remove_path, n_rows=X_train.shape[0], row_limit=row_limit)
+    if oracle_remove_poisoned:
+        remove_idx = load_oracle_poisoned_indices(
+            required_paths["defense_metadata"],
+            n_rows=X_train.shape[0],
+            row_limit=row_limit,
+        )
+    else:
+        remove_idx = load_remove_indices(remove_path, n_rows=X_train.shape[0], row_limit=row_limit)
     keep_mask = np.ones(row_limit, dtype=bool)
     keep_mask[remove_idx] = False
     X_defended = X_train[:row_limit][keep_mask]
@@ -185,8 +202,9 @@ def run_defense_retrain(
             DefenseRetrainConfig(
                 artifact_dir=str(artifact_path),
                 gmm_dir=str(gmm_path) if gmm_path is not None else None,
-                remove_idx_path=str(remove_path),
+                remove_idx_path=str(remove_path) if remove_path is not None else None,
                 output_dir=str(output_path),
+                removal_mode=removal_mode,
                 baseline=baseline,
                 config_path=str(config_path) if config_path is not None else None,
                 max_train_rows=max_train_rows,
@@ -229,22 +247,47 @@ def resolve_remove_idx_path(remove_idx_path: str | Path | None, gmm_dir: Path | 
     return gmm_dir / "remove_watermarked_idx.npy"
 
 
-def resolve_output_dir(output_dir: str | Path | None, gmm_dir: Path | None, artifact_dir: Path) -> Path:
+def resolve_output_dir(
+    output_dir: str | Path | None,
+    gmm_dir: Path | None,
+    artifact_dir: Path,
+    removal_mode: str,
+) -> Path:
     if output_dir is not None:
         resolved = resolve_path(output_dir)
         return resolved or Path(output_dir)
+    dirname = "oracle_poisoned_retrain" if removal_mode == "oracle_poisoned" else "defended_retrain"
     if gmm_dir is not None:
-        return gmm_dir / "defended_retrain"
-    return artifact_dir / "defended_retrain"
+        return gmm_dir / dirname
+    return artifact_dir / dirname
 
 
 def load_remove_indices(remove_path: Path, n_rows: int, row_limit: int) -> np.ndarray:
+    if remove_path is None:
+        raise ValueError("remove_path is required for provided-indices retraining")
     remove_idx = np.asarray(np.load(remove_path), dtype=np.int64).reshape(-1)
     remove_idx = np.unique(remove_idx)
     if np.any(remove_idx < 0) or np.any(remove_idx >= n_rows):
         raise ValueError(f"{remove_path} contains row ids outside watermarked_X rows [0, {n_rows})")
     remove_idx = remove_idx[remove_idx < row_limit]
     return remove_idx
+
+
+def load_oracle_poisoned_indices(defense_metadata_path: Path, n_rows: int, row_limit: int) -> np.ndarray:
+    meta = np.load(defense_metadata_path)
+    if "poisoned_watermarked_idx" in meta.files:
+        remove_idx = np.asarray(meta["poisoned_watermarked_idx"], dtype=np.int64).reshape(-1)
+    elif "poison_mask_full" in meta.files:
+        poison_mask = np.asarray(meta["poison_mask_full"], dtype=bool)
+        remove_idx = np.flatnonzero(poison_mask).astype(np.int64)
+    else:
+        raise KeyError(
+            f"{defense_metadata_path} must contain poisoned_watermarked_idx or poison_mask_full for oracle removal"
+        )
+    remove_idx = np.unique(remove_idx)
+    if np.any(remove_idx < 0) or np.any(remove_idx >= n_rows):
+        raise ValueError(f"{defense_metadata_path} contains poisoned row ids outside watermarked_X rows [0, {n_rows})")
+    return remove_idx[remove_idx < row_limit]
 
 
 def removal_statistics(defense_metadata_path: Path, remove_idx: np.ndarray, row_limit: int) -> dict:

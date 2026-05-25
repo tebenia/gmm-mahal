@@ -112,8 +112,72 @@ python3 -m run_gmm_defense \
 The default GMM grid uses `covariance_type=diag`, `K=1..10`, `reg_covar=1e-6`,
 and removes the top 1% by cluster-wise local Mahalanobis z-score. It also fits a
 global `K=1` Mahalanobis baseline. Outputs include BIC scores, component
-summaries, per-row suspiciousness scores, model files, and the benign-row /
-watermarked-row ids selected for removal.
+summaries, component geometry, per-row suspiciousness scores, model files, and
+the benign-row / watermarked-row ids selected for removal. The geometry table
+adds GMM weight, mean distance, covariance size, density proxies, log
+likelihood, and responsibility confidence/entropy per component.
+
+Component-guided trigger matching can use either score summaries, GMM geometry,
+or feature-value enrichment to choose which components to mine:
+
+```bash
+python3 -m run_component_trigger_matching \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --gmm-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-20_reg1em06_remove1p \
+  --component-rule density_proxy_log \
+  --top-components 3 \
+  --pair-apply-scope global \
+  --row-rank matched_pairs \
+  --removal-percent 1
+```
+
+Useful `--component-rule` ablations include `largest`, `density_proxy_log`,
+`mean_global_mahalanobis`, `smallest_cov_volume`, `avg_log_likelihood`,
+`responsibility_entropy_mean`, and `trigger_weighted_lift_sum`.
+
+To run those ablations as one sweep:
+
+```bash
+python3 -m run_component_rule_sweep \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --gmm-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-20_reg1em06_remove1p \
+  --top-components 3 \
+  --pair-apply-scope global \
+  --row-rank matched_pairs \
+  --removal-percent 1
+```
+
+## MDR-Inspired Defense
+
+Run the MDR-inspired feature-value cleaning baseline on a saved attack artifact:
+
+```bash
+python3 -m run_mdr_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative \
+  --thresholds 3 4 5 6 7 8 9 10 11 12 \
+  --dict-size 40 \
+  --community-tolerance 0.8 \
+  --remove-scope all \
+  --overwrite
+```
+
+This is an MDR-inspired reimplementation from the paper description, not the
+authors' original implementation. It builds SHAP-guided goodware-oriented
+feature-value dictionaries, constructs thresholded intersection graphs, uses
+Louvain communities to choose a suspicious community by malware-score reduction,
+identifies enriched watermark-like feature-value elements, and writes
+`remove_watermarked_idx.npy` for retraining.
+
+Retrain from the MDR-inspired removal indices:
+
+```bash
+python3 -m run_defense_retrain \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative \
+  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative/mdr_inspired/remove_watermarked_idx.npy \
+  --baseline ember2018_20p \
+  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative/mdr_inspired/defended_retrain \
+  --overwrite
+```
 
 Retrain a defended model after removing the suspicious benign rows selected by
 GMM:
@@ -129,6 +193,20 @@ This stage loads `watermarked_X.npy` / `watermarked_y.npy`, removes
 `remove_watermarked_idx.npy`, retrains LightGBM, and evaluates clean accuracy
 when `--baseline` is provided. It also evaluates ASR on `watermarked_X_test.npy`.
 The outputs are written to `<gmm-dir>/defended_retrain/`.
+
+For an oracle sanity check, remove the known poisoned rows instead of the GMM
+selection:
+
+```bash
+python3 -m run_defense_retrain \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --gmm-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-10_reg1em06_remove1p \
+  --baseline ember2018_20p \
+  --oracle-remove-poisoned
+```
+
+This is not a deployable defense because it uses ground-truth poison labels.
+It tells us whether ASR would drop if suspicious-row detection were perfect.
 
 ## Source Layout
 
