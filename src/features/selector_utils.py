@@ -265,6 +265,540 @@ class QuantileValueSelector(object):
         return result
 
 
+class BenignPrototypeValueSelector(object):
+    def __init__(self, criteria):
+        """
+        Selects all feature values from one real benign training row.
+
+        The current prototype rule chooses the benign row closest to the
+        coordinate-wise benign median in the selected feature subspace. This
+        keeps the trigger values as an actually observed benign combination
+        instead of independently combining per-feature values.
+        """
+        self.criteria = criteria
+        self.criteria_desc_map = {
+            'benign_prototype': '(benign_proto) Values copied from median-like benign prototype row',
+            'benign_prototype_median': '(benign_proto_median) Values copied from median-like benign prototype row',
+        }
+        self._X = None
+        self._y = None
+        self._last_metadata = {}
+
+    @property
+    def name(self):
+        return self.criteria
+
+    @property
+    def description(self):
+        return self.criteria_desc_map[self.criteria]
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, value):
+        self._X = value
+
+    def set_training_data(self, X, y):
+        self._X = X
+        self._y = np.asarray(y)
+
+    def get_feature_values(self, feature_ids):
+        if self._X is None or self._y is None:
+            raise ValueError('BenignPrototypeValueSelector requires X and y via set_training_data')
+        benign_rows = np.flatnonzero(self._y.astype(int) == 0)
+        if benign_rows.size == 0:
+            raise ValueError('No benign rows are available for benign prototype selection')
+        values = feature_matrix(self._X, benign_rows, feature_ids)
+        if values.ndim != 2 or values.shape[1] != len(feature_ids):
+            raise ValueError('Unexpected prototype feature matrix shape {}'.format(values.shape))
+
+        center = np.median(values, axis=0)
+        q75 = np.percentile(values, 75, axis=0)
+        q25 = np.percentile(values, 25, axis=0)
+        scale = q75 - q25
+        std = np.std(values, axis=0)
+        scale[scale == 0] = std[scale == 0]
+        scale[scale == 0] = 1.0
+        distances = np.sum(np.abs((values - center) / scale), axis=1)
+        prototype_local_idx = int(np.argmin(distances))
+        prototype_train_idx = int(benign_rows[prototype_local_idx])
+        prototype_values = values[prototype_local_idx]
+        self._last_metadata = {
+            'criteria': self.criteria,
+            'prototype_rule': 'closest_to_benign_median_l1_iqr_scaled',
+            'prototype_train_idx': prototype_train_idx,
+            'prototype_distance': float(distances[prototype_local_idx]),
+            'benign_candidate_rows': int(benign_rows.size),
+            'feature_count': int(len(feature_ids)),
+        }
+        return [float(value) for value in prototype_values]
+
+    def selection_metadata(self):
+        return dict(self._last_metadata)
+
+
+class SignedShapValueSelector(object):
+    def __init__(self, shaps_for_x, criteria):
+        """
+        Selects observed values with the most benign-direction signed SHAP.
+
+        For this binary malware setup, positive SHAP pushes the model toward
+        malware and negative SHAP pushes it toward benign. The mean variant
+        scores each candidate value by average signed SHAP among rows where the
+        feature has that value; the sum variant uses total signed SHAP.
+        """
+        self.shaps_for_x = np.asarray(shaps_for_x)
+        self.criteria = criteria
+        self.criteria_desc_map = {
+            'low_shap_signed': '(low_signed_shap) Values chosen by minimum mean signed SHAP',
+            'signed_shap_min': '(signed_shap_min) Values chosen by minimum mean signed SHAP',
+            'signed_shap_min_mean': '(signed_shap_min_mean) Values chosen by minimum mean signed SHAP',
+            'signed_shap_min_sum': '(signed_shap_min_sum) Values chosen by minimum total signed SHAP',
+        }
+        self._X = None
+        self._last_metadata = {}
+
+    @property
+    def name(self):
+        return self.criteria
+
+    @property
+    def description(self):
+        return self.criteria_desc_map[self.criteria]
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, value):
+        if value.shape[0] != self.shaps_for_x.shape[0]:
+            raise ValueError(
+                'Signed SHAP selector rows {} do not match X rows {}'.format(
+                    self.shaps_for_x.shape[0],
+                    value.shape[0],
+                )
+            )
+        self._X = value
+
+    def get_feature_values(self, feature_ids):
+        if self._X is None:
+            raise ValueError('SignedShapValueSelector requires X before selecting values')
+        result = []
+        metadata = []
+        for feature_id in feature_ids:
+            values = feature_column(self._X, feature_id)
+            shap_values = np.asarray(self.shaps_for_x[:, feature_id], dtype=np.float64)
+            unique_values, inverse, counts = np.unique(values, return_inverse=True, return_counts=True)
+            shap_sums = np.bincount(inverse, weights=shap_values)
+            if self.criteria == 'signed_shap_min_sum':
+                scores = shap_sums
+                score_name = 'signed_shap_sum'
+            else:
+                scores = shap_sums / counts
+                score_name = 'signed_shap_mean'
+            best_score = np.min(scores)
+            candidate_positions = np.flatnonzero(scores == best_score)
+            if candidate_positions.shape[0] > 1:
+                best_local = candidate_positions[np.argmax(counts[candidate_positions])]
+            else:
+                best_local = int(candidate_positions[0])
+            selected_value = float(unique_values[best_local])
+            result.append(selected_value)
+            metadata.append(
+                {
+                    'feature_id': int(feature_id),
+                    'selected_value': selected_value,
+                    'score_name': score_name,
+                    'score': float(scores[best_local]),
+                    'count': int(counts[best_local]),
+                    'unique_values': int(unique_values.shape[0]),
+                }
+            )
+        self._last_metadata = {
+            'criteria': self.criteria,
+            'value_rule': 'minimum_signed_shap',
+            'feature_values': metadata,
+        }
+        return result
+
+    def selection_metadata(self):
+        return dict(self._last_metadata)
+
+
+class FrequencyBoundedValueSelector(object):
+    def __init__(self, criteria):
+        """
+        Selects rare-but-not-too-rare observed feature values.
+
+        The selector chooses the least frequent value whose empirical count is
+        inside a configured frequency band. If no value falls inside the band,
+        it chooses the observed value whose count is closest to the band.
+        """
+        self.criteria = criteria
+        self.min_fraction, self.max_fraction = frequency_bounds_for_criterion(criteria)
+        self.criteria_desc_map = {
+            criteria: '(frequency_bounded) Values with count in [{:.3g}, {:.3g}] fraction'.format(
+                self.min_fraction,
+                self.max_fraction,
+            )
+        }
+        self._X = None
+        self._last_metadata = {}
+
+    @property
+    def name(self):
+        return self.criteria
+
+    @property
+    def description(self):
+        return self.criteria_desc_map[self.criteria]
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, value):
+        self._X = value
+
+    def get_feature_values(self, feature_ids):
+        if self._X is None:
+            raise ValueError('FrequencyBoundedValueSelector requires X before selecting values')
+        result = []
+        metadata = []
+        n_rows = int(self._X.shape[0])
+        min_count = max(1, int(np.ceil(self.min_fraction * n_rows)))
+        max_count = max(min_count, int(np.floor(self.max_fraction * n_rows)))
+
+        for feature_id in feature_ids:
+            values = feature_column(self._X, feature_id)
+            unique_values, counts = np.unique(values, return_counts=True)
+            in_band = np.flatnonzero((counts >= min_count) & (counts <= max_count))
+            fallback = None
+            if in_band.size:
+                candidate_positions = in_band
+                fallback = 'none'
+            else:
+                below = counts < min_count
+                above = counts > max_count
+                distance_to_band = np.zeros(counts.shape[0], dtype=np.int64)
+                distance_to_band[below] = min_count - counts[below]
+                distance_to_band[above] = counts[above] - max_count
+                min_distance = np.min(distance_to_band)
+                candidate_positions = np.flatnonzero(distance_to_band == min_distance)
+                fallback = 'closest_count_to_band'
+
+            candidate_counts = counts[candidate_positions]
+            best_count = np.min(candidate_counts)
+            count_ties = candidate_positions[candidate_counts == best_count]
+            if count_ties.shape[0] > 1:
+                global_median = float(np.median(values))
+                tie_values = unique_values[count_ties]
+                best_local = int(count_ties[np.argmin(np.abs(tie_values - global_median))])
+            else:
+                best_local = int(count_ties[0])
+
+            selected_value = float(unique_values[best_local])
+            result.append(selected_value)
+            metadata.append(
+                {
+                    'feature_id': int(feature_id),
+                    'selected_value': selected_value,
+                    'count': int(counts[best_local]),
+                    'min_count': int(min_count),
+                    'max_count': int(max_count),
+                    'in_band': bool(min_count <= counts[best_local] <= max_count),
+                    'fallback': fallback,
+                    'unique_values': int(unique_values.shape[0]),
+                }
+            )
+
+        self._last_metadata = {
+            'criteria': self.criteria,
+            'value_rule': 'least_frequent_value_within_frequency_bounds',
+            'min_fraction': float(self.min_fraction),
+            'max_fraction': float(self.max_fraction),
+            'feature_values': metadata,
+        }
+        return result
+
+    def selection_metadata(self):
+        return dict(self._last_metadata)
+
+
+class FrequencyBoundedSignedShapValueSelector(object):
+    def __init__(self, shaps_for_x, criteria):
+        """
+        Selects benign-direction signed-SHAP values inside a frequency band.
+
+        This is the bridge between CountAbsSHAP-like stealth and the
+        frequency-bounded idea: avoid ultra-rare values, then among the
+        acceptable values choose the one with the most benign-direction mean
+        signed SHAP.
+        """
+        self.shaps_for_x = np.asarray(shaps_for_x)
+        self.criteria = criteria
+        self.min_fraction, self.max_fraction = frequency_bounds_for_signed_criterion(criteria)
+        self.criteria_desc_map = {
+            criteria: '(frequency_bounded_signed_shap) Minimum mean signed SHAP within [{:.3g}, {:.3g}] fraction'.format(
+                self.min_fraction,
+                self.max_fraction,
+            )
+        }
+        self._X = None
+        self._last_metadata = {}
+
+    @property
+    def name(self):
+        return self.criteria
+
+    @property
+    def description(self):
+        return self.criteria_desc_map[self.criteria]
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, value):
+        if value.shape[0] != self.shaps_for_x.shape[0]:
+            raise ValueError(
+                'Frequency-bounded signed SHAP rows {} do not match X rows {}'.format(
+                    self.shaps_for_x.shape[0],
+                    value.shape[0],
+                )
+            )
+        self._X = value
+
+    def get_feature_values(self, feature_ids):
+        if self._X is None:
+            raise ValueError('FrequencyBoundedSignedShapValueSelector requires X before selecting values')
+        result = []
+        metadata = []
+        n_rows = int(self._X.shape[0])
+        min_count = max(1, int(np.ceil(self.min_fraction * n_rows)))
+        max_count = max(min_count, int(np.floor(self.max_fraction * n_rows)))
+
+        for feature_id in feature_ids:
+            values = feature_column(self._X, feature_id)
+            shap_values = np.asarray(self.shaps_for_x[:, feature_id], dtype=np.float64)
+            unique_values, inverse, counts = np.unique(values, return_inverse=True, return_counts=True)
+            shap_sums = np.bincount(inverse, weights=shap_values)
+            shap_means = shap_sums / counts
+            in_band = np.flatnonzero((counts >= min_count) & (counts <= max_count))
+            fallback = None
+            if in_band.size:
+                candidate_positions = in_band
+                fallback = 'none'
+            else:
+                candidate_positions = closest_count_positions(counts, min_count, max_count)
+                fallback = 'closest_count_to_band'
+
+            candidate_scores = shap_means[candidate_positions]
+            best_score = np.min(candidate_scores)
+            score_ties = candidate_positions[candidate_scores == best_score]
+            if score_ties.shape[0] > 1:
+                best_local = int(score_ties[np.argmax(counts[score_ties])])
+            else:
+                best_local = int(score_ties[0])
+
+            selected_value = float(unique_values[best_local])
+            result.append(selected_value)
+            metadata.append(
+                {
+                    'feature_id': int(feature_id),
+                    'selected_value': selected_value,
+                    'signed_shap_mean': float(shap_means[best_local]),
+                    'count': int(counts[best_local]),
+                    'min_count': int(min_count),
+                    'max_count': int(max_count),
+                    'in_band': bool(min_count <= counts[best_local] <= max_count),
+                    'fallback': fallback,
+                    'unique_values': int(unique_values.shape[0]),
+                }
+            )
+
+        self._last_metadata = {
+            'criteria': self.criteria,
+            'value_rule': 'minimum_mean_signed_shap_within_frequency_bounds',
+            'min_fraction': float(self.min_fraction),
+            'max_fraction': float(self.max_fraction),
+            'feature_values': metadata,
+        }
+        return result
+
+    def selection_metadata(self):
+        return dict(self._last_metadata)
+
+
+class CorrelationPreservingCountAbsShapSelector(object):
+    def __init__(self, shaps_for_x, criteria):
+        """
+        Greedy CountAbsSHAP value selection with benign co-occurrence support.
+
+        For each selected feature, values are scored with the CountAbsSHAP-style
+        objective on the benign rows still matching the previously chosen
+        trigger values. A value is preferred only if the partial trigger keeps
+        at least min_joint_count benign rows; otherwise the selector falls back
+        to the value that preserves the most support.
+        """
+        self.shaps_for_x = np.asarray(shaps_for_x)
+        self.criteria = criteria
+        self.min_joint_count = correlation_count_abs_min_count(criteria)
+        self.criteria_desc_map = {
+            criteria: '(corr_count_abs_shap) CountAbsSHAP with benign co-occurrence support >= {}'.format(
+                self.min_joint_count
+            )
+        }
+        self._X = None
+        self._y = None
+        self._last_metadata = {}
+
+    @property
+    def name(self):
+        return self.criteria
+
+    @property
+    def description(self):
+        return self.criteria_desc_map[self.criteria]
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, value):
+        if value.shape[0] != self.shaps_for_x.shape[0]:
+            raise ValueError(
+                'Correlation CountAbsSHAP rows {} do not match X rows {}'.format(
+                    self.shaps_for_x.shape[0],
+                    value.shape[0],
+                )
+            )
+        self._X = value
+
+    def set_training_data(self, X, y):
+        self.X = X
+        self._y = np.asarray(y)
+
+    def get_feature_values(self, feature_ids):
+        if self._X is None or self._y is None:
+            raise ValueError('CorrelationPreservingCountAbsShapSelector requires X and y via set_training_data')
+        benign_rows = np.flatnonzero(self._y.astype(int) == 0)
+        if benign_rows.size == 0:
+            raise ValueError('No benign rows are available for correlation-preserving selection')
+
+        current_rows = benign_rows.astype(np.int64, copy=True)
+        result = []
+        metadata = []
+        for feature_id in feature_ids:
+            values = feature_column(self._X, feature_id)[current_rows]
+            shap_values = np.abs(np.asarray(self.shaps_for_x[current_rows, feature_id], dtype=np.float64))
+            unique_values, inverse, counts = np.unique(values, return_inverse=True, return_counts=True)
+            shap_sums = np.bincount(inverse, weights=shap_values)
+            scores = (1.0 / counts) + shap_sums
+            feasible = np.flatnonzero(counts >= self.min_joint_count)
+            fallback = None
+            if feasible.size:
+                candidate_positions = feasible
+                fallback = 'none'
+            else:
+                max_count = np.max(counts)
+                candidate_positions = np.flatnonzero(counts == max_count)
+                fallback = 'max_support_below_min_joint_count'
+
+            candidate_scores = scores[candidate_positions]
+            best_score = np.min(candidate_scores)
+            score_ties = candidate_positions[candidate_scores == best_score]
+            if score_ties.shape[0] > 1:
+                best_local = int(score_ties[np.argmax(counts[score_ties])])
+            else:
+                best_local = int(score_ties[0])
+
+            selected_value = float(unique_values[best_local])
+            keep = values == selected_value
+            current_rows = current_rows[keep]
+            result.append(selected_value)
+            metadata.append(
+                {
+                    'feature_id': int(feature_id),
+                    'selected_value': selected_value,
+                    'count_before_selection': int(counts[best_local]),
+                    'joint_support_after_selection': int(current_rows.shape[0]),
+                    'min_joint_count': int(self.min_joint_count),
+                    'score': float(scores[best_local]),
+                    'sum_abs_shap': float(shap_sums[best_local]),
+                    'fallback': fallback,
+                    'unique_values': int(unique_values.shape[0]),
+                }
+            )
+
+        self._last_metadata = {
+            'criteria': self.criteria,
+            'value_rule': 'count_abs_shap_with_greedy_benign_cooccurrence_support',
+            'min_joint_count': int(self.min_joint_count),
+            'final_joint_support': int(current_rows.shape[0]),
+            'benign_candidate_rows': int(benign_rows.shape[0]),
+            'feature_values': metadata,
+        }
+        return result
+
+    def selection_metadata(self):
+        return dict(self._last_metadata)
+
+
+def frequency_bounds_for_criterion(criteria):
+    bounds = {
+        'frequency_bounded': (0.001, 0.05),
+        'freq_0p1_1p': (0.001, 0.01),
+        'freq_0p1_5p': (0.001, 0.05),
+        'freq_0p5_5p': (0.005, 0.05),
+        'freq_1p_10p': (0.01, 0.10),
+    }
+    if criteria not in bounds:
+        raise ValueError('Invalid frequency-bounded criterion {}'.format(criteria))
+    return bounds[criteria]
+
+
+def frequency_bounds_for_signed_criterion(criteria):
+    bounds = {
+        'frequency_bounded_signed_shap': (0.001, 0.05),
+        'freq_signed_0p1_1p': (0.001, 0.01),
+        'freq_signed_0p1_5p': (0.001, 0.05),
+        'freq_signed_0p5_5p': (0.005, 0.05),
+        'freq_signed_1p_10p': (0.01, 0.10),
+    }
+    if criteria not in bounds:
+        raise ValueError('Invalid frequency-bounded signed SHAP criterion {}'.format(criteria))
+    return bounds[criteria]
+
+
+def correlation_count_abs_min_count(criteria):
+    counts = {
+        'corr_count_abs_shap': 10,
+        'corr_count_abs_shap_min10': 10,
+        'corr_count_abs_shap_min50': 50,
+        'corr_count_abs_shap_min100': 100,
+    }
+    if criteria not in counts:
+        raise ValueError('Invalid correlation-preserving CountAbsSHAP criterion {}'.format(criteria))
+    return counts[criteria]
+
+
+def closest_count_positions(counts, min_count, max_count):
+    below = counts < min_count
+    above = counts > max_count
+    distance_to_band = np.zeros(counts.shape[0], dtype=np.int64)
+    distance_to_band[below] = min_count - counts[below]
+    distance_to_band[above] = counts[above] - max_count
+    min_distance = np.min(distance_to_band)
+    return np.flatnonzero(distance_to_band == min_distance)
+
+
 def parse_quantile_criterion(criteria):
     prefix = 'quantile_'
     if not criteria.startswith(prefix):
@@ -284,6 +818,14 @@ def feature_column(X, feature_id):
     if hasattr(column, 'toarray'):
         column = column.toarray()
     return np.asarray(column, dtype=np.float64).reshape(-1)
+
+
+def feature_matrix(X, rows, feature_ids):
+    matrix = X[rows]
+    matrix = matrix[:, feature_ids]
+    if hasattr(matrix, 'toarray'):
+        matrix = matrix.toarray()
+    return np.asarray(matrix, dtype=np.float64)
 
 
 def _process_one_shap_linear_combination(feature_index_id_x_shaps_tuple):

@@ -8,9 +8,8 @@ build/
 artifacts/**
 !artifacts/README.md
 !artifacts/**/.gitkeep
-results/**
-!results/README.md
-!results/**/.gitkeep
+results/
+logs/
 
 # Local machine-specific config.
 configs/local_paths.yaml

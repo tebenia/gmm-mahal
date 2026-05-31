@@ -31,7 +31,16 @@ from ..features.feature_selectors import (
     ImportantFeatureSelector,
     ShapleyFeatureSelector,
 )
-from ..features.value_selectors import HistogramBinValueSelector, QuantileValueSelector, ShapValueSelector
+from ..features.value_selectors import (
+    BenignPrototypeValueSelector,
+    CorrelationPreservingCountAbsShapSelector,
+    HistogramBinValueSelector,
+    FrequencyBoundedValueSelector,
+    FrequencyBoundedSignedShapValueSelector,
+    QuantileValueSelector,
+    ShapValueSelector,
+    SignedShapValueSelector,
+)
 
 try:
     from mimicus import mimicus_utils
@@ -433,6 +442,39 @@ def get_value_selectors(vsc, shap_values_df):
             )
             v_selectors[v] = quantile_selector
 
+        elif v in constants.value_selection_criteria_benign_prototypes:
+            benign_prototype_selector = BenignPrototypeValueSelector(
+                criteria=v
+            )
+            v_selectors[v] = benign_prototype_selector
+
+        elif v in constants.value_selection_criteria_signed_shap:
+            signed_shap_selector = SignedShapValueSelector(
+                shap_values_df.values,
+                criteria=v
+            )
+            v_selectors[v] = signed_shap_selector
+
+        elif v in constants.value_selection_criteria_frequency_bounded:
+            frequency_bounded_selector = FrequencyBoundedValueSelector(
+                criteria=v
+            )
+            v_selectors[v] = frequency_bounded_selector
+
+        elif v in constants.value_selection_criteria_frequency_bounded_signed_shap:
+            frequency_bounded_signed_selector = FrequencyBoundedSignedShapValueSelector(
+                shap_values_df.values,
+                criteria=v
+            )
+            v_selectors[v] = frequency_bounded_signed_selector
+
+        elif v in constants.value_selection_criteria_corr_count_abs_shap:
+            corr_count_abs_selector = CorrelationPreservingCountAbsShapSelector(
+                shap_values_df.values,
+                criteria=v
+            )
+            v_selectors[v] = corr_count_abs_selector
+
         # For both the combined and fixed strategies there is no need for a 
         # specific value selector
         elif v == constants.value_selection_criterion_combined:
@@ -572,7 +614,10 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                                 )
                             )
 
-                        if feat_value_selector is None:
+                        if feat_value_selector is not None and hasattr(feat_value_selector, 'set_training_data'):
+                            feat_value_selector.set_training_data(to_pass_x, y_train)
+
+                        elif feat_value_selector is None:
                             feat_selector.X = to_pass_x
 
                         elif feat_value_selector.X is None:
@@ -622,6 +667,8 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                             'train_sampling_strategy': DYNAMIC_TRAIN_SAMPLING_STRATEGY,
                             'train_sampling_config': dict(DYNAMIC_TRAIN_SAMPLING_CONFIG),
                         }
+                        if feat_value_selector is not None and hasattr(feat_value_selector, 'selection_metadata'):
+                            wm_config['value_selector_metadata'] = feat_value_selector.selection_metadata()
 
                         start_time = time.time()
                         y_temp = np.ones(X_temp.shape[0])

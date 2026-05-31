@@ -35,7 +35,7 @@ or CLI overrides. These list fields are iterable:
 
 ```yaml
 feature_selection: [combined_shap, shap_largest_abs]
-value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap, quantile_10]
+value_selection: [combined_shap, min_population_new, argmin_Nv_sum_abs_shap, quantile_10, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap]
 sampling_strategies: [random, cosine_similarity]
 poison_rates: [0.005, 0.01]
 watermark_sizes: [17, 25]
@@ -48,7 +48,7 @@ python3 -m run_attack_baseline \
   --baseline ember2024_win64_20p \
   --sampling random,cosine_similarity \
   --feature-selection combined_shap,shap_largest_abs \
-  --value-selection combined_shap,min_population_new,argmin_Nv_sum_abs_shap,quantile_10 \
+  --value-selection combined_shap,min_population_new,argmin_Nv_sum_abs_shap,quantile_10,benign_prototype,low_shap_signed,frequency_bounded,frequency_bounded_signed_shap,corr_count_abs_shap \
   --poison-rate 0.005,0.01 \
   --watermark-size 17,25 \
   --dry-run
@@ -60,10 +60,84 @@ feature selectors such as `shap_largest_abs` are paired with each listed value
 selector. Feature-only value names such as `combined_shap`, `combined_additive_shap`,
 and `fixed` are skipped for non-combined feature selectors.
 
+Accepted `--value-selection` values:
+
+```text
+min_population_new
+argmin_Nv_sum_abs_shap
+
+combined_shap
+combined_additive_shap
+fixed
+
+quantile_05
+quantile_10
+quantile_25
+quantile_50
+quantile_75
+quantile_90
+quantile_95
+
+benign_prototype
+benign_prototype_median
+
+low_shap_signed
+signed_shap_min
+signed_shap_min_mean
+signed_shap_min_sum
+
+frequency_bounded
+freq_0p1_1p
+freq_0p1_5p
+freq_0p5_5p
+freq_1p_10p
+
+frequency_bounded_signed_shap
+freq_signed_0p1_1p
+freq_signed_0p1_5p
+freq_signed_0p5_5p
+freq_signed_1p_10p
+
+corr_count_abs_shap
+corr_count_abs_shap_min10
+corr_count_abs_shap_min50
+corr_count_abs_shap_min100
+```
+
 Quantile value selectors choose an observed training-set value at a fixed
 empirical quantile for each selected feature. Available options are
 `quantile_05`, `quantile_10`, `quantile_25`, `quantile_50`, `quantile_75`,
 `quantile_90`, and `quantile_95`.
+
+`benign_prototype` copies all selected feature values from one real benign
+training row. The current rule chooses the benign row closest to the
+coordinate-wise benign median in the selected feature subspace. This preserves
+an observed benign feature-value combination instead of combining each feature's
+value independently. `benign_prototype_median` is an equivalent explicit alias.
+
+`low_shap_signed` chooses observed values whose signed SHAP contribution is most
+negative on average, meaning most benign-directional for the current binary
+malware model. `signed_shap_min` and `signed_shap_min_mean` are aliases.
+`signed_shap_min_sum` is a frequency-weighted variant that uses the total signed
+SHAP over rows with each value.
+
+`frequency_bounded` chooses the least frequent observed value whose count is
+within a configured frequency band. The default band is 0.1%-5% of training
+rows. Additional bands are `freq_0p1_1p`, `freq_0p1_5p`, `freq_0p5_5p`, and
+`freq_1p_10p`. If no value falls inside the band, the selector uses the observed
+value whose count is closest to the band.
+
+`frequency_bounded_signed_shap` first restricts candidate values to the same
+frequency band idea, then chooses the value with the most negative mean signed
+SHAP. Additional bands are `freq_signed_0p1_1p`, `freq_signed_0p1_5p`,
+`freq_signed_0p5_5p`, and `freq_signed_1p_10p`.
+
+`corr_count_abs_shap` is a correlation-preserving CountAbsSHAP variant. It
+selects values greedily on benign rows that still match previously selected
+trigger values, preferring CountAbsSHAP-style low `1/count + sum(abs(SHAP))`
+values only when the partial trigger keeps at least 10 benign rows. Variants
+`corr_count_abs_shap_min50` and `corr_count_abs_shap_min100` require more
+co-occurrence support.
 
 The default target feature group is `feature_space_feasible`. This is a
 Severi-style feature-vector candidate set: non-hashed features minus configured

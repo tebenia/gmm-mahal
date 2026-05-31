@@ -170,6 +170,15 @@ value_selection_criterion_shap = "argmin_Nv_sum_abs_shap"
 value_selection_criterion_combined = "combined_shap"
 value_selection_criterion_combined_additive = "combined_additive_shap"
 value_selection_criterion_fix = "fixed"
+value_selection_criterion_benign_prototype = "benign_prototype"
+value_selection_criterion_benign_prototype_median = "benign_prototype_median"
+value_selection_criterion_low_shap_signed = "low_shap_signed"
+value_selection_criterion_signed_shap_min = "signed_shap_min"
+value_selection_criterion_signed_shap_min_mean = "signed_shap_min_mean"
+value_selection_criterion_signed_shap_min_sum = "signed_shap_min_sum"
+value_selection_criterion_frequency_bounded = "frequency_bounded"
+value_selection_criterion_frequency_bounded_signed_shap = "frequency_bounded_signed_shap"
+value_selection_criterion_corr_count_abs_shap = "corr_count_abs_shap"
 value_selection_criteria_quantiles = {
     "quantile_05",
     "quantile_10",
@@ -179,13 +188,43 @@ value_selection_criteria_quantiles = {
     "quantile_90",
     "quantile_95",
 }
+value_selection_criteria_benign_prototypes = {
+    value_selection_criterion_benign_prototype,
+    value_selection_criterion_benign_prototype_median,
+}
+value_selection_criteria_signed_shap = {
+    value_selection_criterion_low_shap_signed,
+    value_selection_criterion_signed_shap_min,
+    value_selection_criterion_signed_shap_min_mean,
+    value_selection_criterion_signed_shap_min_sum,
+}
+value_selection_criteria_frequency_bounded = {
+    value_selection_criterion_frequency_bounded,
+    "freq_0p1_1p",
+    "freq_0p1_5p",
+    "freq_0p5_5p",
+    "freq_1p_10p",
+}
+value_selection_criteria_frequency_bounded_signed_shap = {
+    value_selection_criterion_frequency_bounded_signed_shap,
+    "freq_signed_0p1_1p",
+    "freq_signed_0p1_5p",
+    "freq_signed_0p5_5p",
+    "freq_signed_1p_10p",
+}
+value_selection_criteria_corr_count_abs_shap = {
+    value_selection_criterion_corr_count_abs_shap,
+    "corr_count_abs_shap_min10",
+    "corr_count_abs_shap_min50",
+    "corr_count_abs_shap_min100",
+}
 value_selection_criteria = {
     value_selection_criterion_min,
     value_selection_criterion_shap,
     value_selection_criterion_combined,
     value_selection_criterion_fix,
     value_selection_criterion_combined_additive,
-} | value_selection_criteria_quantiles
+} | value_selection_criteria_quantiles | value_selection_criteria_benign_prototypes | value_selection_criteria_signed_shap | value_selection_criteria_frequency_bounded | value_selection_criteria_frequency_bounded_signed_shap | value_selection_criteria_corr_count_abs_shap
 
 num_features = {
     "ember": 2381,
@@ -226,6 +265,26 @@ human_mapping = {
     "quantile_75": "Quantile 75",
     "quantile_90": "Quantile 90",
     "quantile_95": "Quantile 95",
+    "benign_prototype": "Benign Prototype",
+    "benign_prototype_median": "Benign Prototype Median",
+    "low_shap_signed": "Low Signed SHAP",
+    "signed_shap_min": "Signed SHAP Min",
+    "signed_shap_min_mean": "Signed SHAP Min Mean",
+    "signed_shap_min_sum": "Signed SHAP Min Sum",
+    "frequency_bounded": "Frequency Bounded",
+    "freq_0p1_1p": "Frequency Bounded 0.1-1%",
+    "freq_0p1_5p": "Frequency Bounded 0.1-5%",
+    "freq_0p5_5p": "Frequency Bounded 0.5-5%",
+    "freq_1p_10p": "Frequency Bounded 1-10%",
+    "frequency_bounded_signed_shap": "Frequency Bounded Signed SHAP",
+    "freq_signed_0p1_1p": "Frequency Bounded Signed SHAP 0.1-1%",
+    "freq_signed_0p1_5p": "Frequency Bounded Signed SHAP 0.1-5%",
+    "freq_signed_0p5_5p": "Frequency Bounded Signed SHAP 0.5-5%",
+    "freq_signed_1p_10p": "Frequency Bounded Signed SHAP 1-10%",
+    "corr_count_abs_shap": "Correlation-Preserving CountAbsSHAP",
+    "corr_count_abs_shap_min10": "Correlation-Preserving CountAbsSHAP min10",
+    "corr_count_abs_shap_min50": "Correlation-Preserving CountAbsSHAP min50",
+    "corr_count_abs_shap_min100": "Correlation-Preserving CountAbsSHAP min100",
 }
 
 DO_SANITY_CHECKS = False
