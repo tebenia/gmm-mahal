@@ -320,6 +320,54 @@ This stage loads `watermarked_X.npy` / `watermarked_y.npy`, removes
 when `--baseline` is provided. It also evaluates ASR on `watermarked_X_test.npy`.
 The outputs are written to `<gmm-dir>/defended_retrain/`.
 
+## Notebook-Style Isolation Forest and Spectral Signature
+
+Run the Isolation Forest or Spectral Signature detectors ported from the
+`backdoor_codex_*` notebook defense cells:
+
+```bash
+python3 -m run_severi_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --method isolation_forest \
+  --feature-mode hybrid \
+  --top-k 32 \
+  --contamination 0.005 \
+  --overwrite
+```
+
+```bash
+python3 -m run_severi_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --method spectral_signature \
+  --feature-mode hybrid \
+  --top-k 32 \
+  --removal-percent 1 \
+  --overwrite
+```
+
+The feature subspace follows the old notebook idea: `watermark` uses the actual
+watermark feature ids from `wm_config.npy`, `shap` uses the highest mean-absolute
+backdoored-model SHAP features, and `hybrid` starts with watermark features then
+pads with SHAP features up to `--top-k`. The detector writes
+`suspicious_scores.csv`, `selected_features.csv`, and `remove_watermarked_idx.npy`
+under `<artifact-dir>/severi_detectors/<settings>/`.
+
+`--spectral-oracle-poison-count` matches the old notebook's Spectral Signature
+default by removing the known number of poisoned benign rows. Treat that as a
+diagnostic budget because it uses ground-truth poison metadata. For a non-oracle
+run, prefer an explicit `--removal-percent`.
+
+Retrain from either detector's removal indices:
+
+```bash
+python3 -m run_defense_retrain \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/severi_detectors/spectral_signature_hybrid_top32_scaled_remove1p/remove_watermarked_idx.npy \
+  --baseline ember2018_20p \
+  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/severi_detectors/spectral_signature_hybrid_top32_scaled_remove1p/defended_retrain \
+  --overwrite
+```
+
 For an oracle sanity check, remove the known poisoned rows instead of the GMM
 selection:
 
@@ -341,6 +389,7 @@ run_attack_baseline.py          CLI entry point
 run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
 run_gmm_defense.py              GMM-BIC/Mahalanobis scoring entry point
 run_optics_defense.py           OPTICS iterative filtering entry point
+run_severi_defense.py           Isolation Forest / Spectral Signature detector entry point
 run_defense_retrain.py          defended retraining/evaluation entry point
 src/
   run_attack_baseline.py        CLI implementation
