@@ -34,6 +34,8 @@ SUPPORTED_SAMPLING_STRATEGIES = {
     "adaptive",
     "feature_based_distance",
     "distribution_based_distance",
+    "score_wasserstein_distance",
+    "score_kde_density_ratio",
     "shap_contribution_distance",
     "mahalanobis_distance",
     "cosine_similarity",

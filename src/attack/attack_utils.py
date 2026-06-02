@@ -99,6 +99,10 @@ def select_train_goodware_indices(X_train_mw, X_train_gw, y_train, wm_config, fe
         indices = sampling_utils.feature_based_distance_sampling(X_train_mw, X_train_gw, num_samples)
     elif strategy == "distribution_based_distance":
         indices = sampling_utils.distribution_based_distance_sampling(X_train_mw, X_train_gw, num_samples, original_model)
+    elif strategy == "score_wasserstein_distance":
+        indices = sampling_utils.score_wasserstein_distance_sampling(X_train_mw, X_train_gw, num_samples, original_model)
+    elif strategy == "score_kde_density_ratio":
+        indices = sampling_utils.score_kde_density_ratio_sampling(X_train_mw, X_train_gw, num_samples, original_model)
     elif strategy == "shap_contribution_distance":
         shap_values_df = SAMPLING_STATE.get("train_shap_values_df")
         if shap_values_df is None:

@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Override train goodware sampling strategy. Can be passed multiple times "
-            "or as a comma-separated list, e.g. random,wasserstein_distance."
+            "or as a comma-separated list, e.g. random,score_wasserstein_distance."
         ),
     )
     parser.add_argument(

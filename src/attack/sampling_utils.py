@@ -9,6 +9,74 @@ from sklearn.preprocessing import Binarizer
 from scipy.spatial.distance import cdist
 from scipy.stats import wasserstein_distance
 
+def _predict_probs(model, X):
+    """Return positive-class probabilities for sklearn-like models or LightGBM Boosters."""
+    if hasattr(model, 'predict_proba'):
+        return np.asarray(model.predict_proba(X)[:, 1], dtype=np.float64)
+    preds = np.asarray(model.predict(X), dtype=np.float64)
+    if preds.ndim > 1 and preds.shape[1] > 1:
+        preds = preds[:, 1]
+    return preds.reshape(-1)
+
+
+def mean_abs_distance_to_reference(points, reference):
+    """Efficiently compute mean(abs(point - reference_i)) for many 1D points."""
+    points = np.asarray(points, dtype=np.float64).reshape(-1)
+    reference = np.sort(np.asarray(reference, dtype=np.float64).reshape(-1))
+    if reference.size == 0:
+        raise ValueError("reference distribution is empty")
+
+    cumsum = np.concatenate(([0.0], np.cumsum(reference)))
+    insert_pos = np.searchsorted(reference, points, side='left')
+    left_sum = cumsum[insert_pos]
+    right_sum = cumsum[-1] - left_sum
+    left_count = insert_pos
+    right_count = reference.size - insert_pos
+    distances = (points * left_count - left_sum) + (right_sum - points * right_count)
+    return distances / reference.size
+
+
+def score_density(reference_scores, query_scores, grid_range=None, bins=2048, bandwidth=None):
+    """Evaluate a scalable 1D histogram-KDE density for query scores."""
+    reference_scores = np.asarray(reference_scores, dtype=np.float64).reshape(-1)
+    query_scores = np.asarray(query_scores, dtype=np.float64).reshape(-1)
+    if reference_scores.size < 2:
+        raise ValueError("KDE density requires at least two reference scores")
+    if grid_range is None:
+        combined = np.concatenate([reference_scores, query_scores])
+        low = float(np.min(combined))
+        high = float(np.max(combined))
+    else:
+        low, high = (float(grid_range[0]), float(grid_range[1]))
+    if not np.isfinite(low) or not np.isfinite(high):
+        raise ValueError("Score densities require finite score values")
+    if high <= low:
+        mean = float(np.mean(reference_scores))
+        bandwidth = max(float(np.std(reference_scores)), 1e-6)
+        z = (query_scores - mean) / bandwidth
+        return np.exp(-0.5 * z * z) / (np.sqrt(2 * np.pi) * bandwidth)
+
+    padding = max((high - low) * 0.01, 1e-6)
+    low -= padding
+    high += padding
+    hist, edges = np.histogram(reference_scores, bins=bins, range=(low, high))
+    bin_width = float(edges[1] - edges[0])
+    centers = (edges[:-1] + edges[1:]) / 2
+
+    if bandwidth is None:
+        std = float(np.std(reference_scores))
+        bandwidth = 1.06 * std * (reference_scores.size ** (-1 / 5)) if std > 0 else bin_width
+    bandwidth = max(float(bandwidth), bin_width)
+    sigma_bins = max(bandwidth / bin_width, 1e-6)
+    radius = max(1, int(np.ceil(4 * sigma_bins)))
+    x = np.arange(-radius, radius + 1, dtype=np.float64)
+    kernel = np.exp(-0.5 * (x / sigma_bins) ** 2)
+    kernel /= np.sum(kernel)
+    smoothed = np.convolve(hist.astype(np.float64), kernel, mode='same')
+    density = smoothed / (max(float(np.sum(hist)), 1.0) * bin_width)
+    return np.interp(query_scores, centers, density, left=density[0], right=density[-1])
+
+
 def adaptive_sample_indices(X_pool, watermark_features_map, feature_names, num_samples,
                               mode='mid', lower_q=0.2, upper_q=0.8, mix_ratio=0.5):
     """
@@ -100,15 +168,6 @@ def feature_based_distance_sampling(X_train_mw, X_train_gw, conf_1):
 
     # Attempt 5	Feature-based Distance - (Previous Research)	Compute a malware center vector: Take the average of malware samples in the reduced feature space. Measure Euclidean distances between benign samples and the malware center.	0.9995	0.0686	0.898	10243/11401
 def distribution_based_distance_sampling(X_train_mw, X_train_gw, conf_1, original_model):
-    def _predict_probs(model, X):
-        """Return positive-class probabilities for either sklearn or Booster models."""
-        if hasattr(model, 'predict_proba'):
-            return model.predict_proba(X)[:, 1]
-        # lightgbm.Booster exposes only predict
-        preds = model.predict(X)
-        preds = np.asarray(preds)
-        return preds[:, 1] if preds.ndim > 1 and preds.shape[1] > 1 else preds
-
     malware_scores = _predict_probs(original_model, X_train_mw)
     benign_scores = _predict_probs(original_model, X_train_gw)
 
@@ -132,6 +191,42 @@ def distribution_based_distance_sampling(X_train_mw, X_train_gw, conf_1, origina
 
 # Methods	Explanation	Backdoored model on original test set accuracy	Backdoored model on backdoored test set accuracy	"evasions success percent"	Successes/Watermarked Test Set
 # Attempt 6	Distribution-based distance - (Previous Research)	Quantify distributional similarity between malware and benign samples, Select candidate benign samples that reside in the overlapping region	1	0.0005	0.966	11018/11401
+
+def score_wasserstein_distance_sampling(X_train_mw, X_train_gw, conf_1, original_model):
+    """
+    Select benign samples whose model scores are closest to the empirical malware
+    score distribution under 1D Wasserstein distance.
+
+    For a single benign score s and malware scores M, W1(delta_s, M) equals
+    mean(abs(s - M)). This is a score-space distributional sampler, not a
+    raw-feature-space Wasserstein approximation.
+    """
+    malware_scores = _predict_probs(original_model, X_train_mw)
+    benign_scores = _predict_probs(original_model, X_train_gw)
+
+    distances = mean_abs_distance_to_reference(benign_scores, malware_scores)
+    return np.argsort(distances)[:conf_1]
+
+
+def score_kde_density_ratio_sampling(X_train_mw, X_train_gw, conf_1, original_model):
+    """
+    Select benign samples in model-score regions that are more malware-like than
+    benign-like.
+
+    The score is log p_malware(s) - log p_benign(s), using smoothed 1D score
+    histograms as scalable KDE approximations. Larger values are more
+    suspicious/malware-like.
+    """
+    malware_scores = _predict_probs(original_model, X_train_mw)
+    benign_scores = _predict_probs(original_model, X_train_gw)
+
+    combined_scores = np.concatenate([malware_scores, benign_scores])
+    grid_range = (float(np.min(combined_scores)), float(np.max(combined_scores)))
+    malware_density = score_density(malware_scores, benign_scores, grid_range=grid_range)
+    benign_density = score_density(benign_scores, benign_scores, grid_range=grid_range)
+    eps = 1e-12
+    log_density_ratio = np.log(malware_density + eps) - np.log(benign_density + eps)
+    return np.argsort(log_density_ratio)[::-1][:conf_1]
 
 def shap_contribution_distance_sampling(X_train_mw, X_train_gw, y_atk, shap_values_df, conf_1):
     """

@@ -54,6 +54,32 @@ python3 -m run_attack_baseline \
   --dry-run
 ```
 
+Accepted `--sampling` values:
+
+```text
+random
+adaptive
+
+feature_based_distance
+distribution_based_distance
+score_wasserstein_distance
+score_kde_density_ratio
+shap_contribution_distance
+
+mahalanobis_distance
+cosine_similarity
+jaccard_distance
+wasserstein_distance
+```
+
+`distribution_based_distance` is the original score-space sampler: it computes
+KDE overlap for diagnostics, then selects benign rows nearest to the malware
+mean score. `score_wasserstein_distance` is also score-space, but compares each
+benign score to the empirical malware score distribution with 1D Wasserstein
+distance, equivalent to `mean(abs(benign_score - malware_scores))`.
+`score_kde_density_ratio` selects benign rows whose clean-model scores have high
+malware-score density relative to benign-score density.
+
 Selector pairing follows the original notebook logic: combined selectors such as
 `combined_shap` run as `combined_shap + combined_shap`, while non-combined
 feature selectors such as `shap_largest_abs` are paired with each listed value
