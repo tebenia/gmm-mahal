@@ -18,11 +18,21 @@ from .defense.component_trigger_matching import (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-dir", required=True, help="Attack artifact directory.")
-    parser.add_argument("--gmm-dir", required=True, help="GMM defense output directory with suspicious_scores.csv.")
+    parser.add_argument(
+        "--gmm-dir",
+        default=None,
+        help=(
+            "Optional GMM defense output directory with suspicious_scores.csv. "
+            "If omitted, all benign rows are treated as one pseudo-component; use --component-rule all or largest."
+        ),
+    )
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Output directory. Defaults to <gmm-dir>/component_trigger_matching/<settings>.",
+        help=(
+            "Output directory. Defaults to <gmm-dir>/component_trigger_matching/<settings> "
+            "with GMM, or <artifact-dir>/component_trigger_matching_no_gmm/<settings> without GMM."
+        ),
     )
     parser.add_argument(
         "--component-rule",

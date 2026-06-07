@@ -1,4 +1,4 @@
-"""Isolation Forest and Spectral Signature defenses ported from the notebooks.
+"""Isolation Forest, Spectral Signature, and HDBSCAN defenses.
 
 These are detector stages: they score benign-labeled rows in a saved attack
 artifact, write ``remove_watermarked_idx.npy``, and leave retraining to
@@ -17,13 +17,14 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
+from sklearn.metrics import silhouette_samples
 from sklearn.preprocessing import MinMaxScaler
 
 from ..features import ember2024_feature_utils, ember_feature_utils
 from ..utils.paths import resolve_path
 
 
-SUPPORTED_METHODS = {"isolation_forest", "spectral_signature"}
+SUPPORTED_METHODS = {"hdbscan", "isolation_forest", "spectral_signature"}
 SUPPORTED_FEATURE_MODES = {"watermark", "shap", "hybrid"}
 
 
@@ -41,6 +42,12 @@ class SeveriDetectorConfig:
     batch_size: int = 8192
     max_benign_rows: int | None = None
     random_state: int = 42
+    hdbscan_min_cluster_size: int | None = None
+    hdbscan_min_cluster_percent: float = 0.5
+    hdbscan_min_samples: int | None = None
+    hdbscan_min_samples_percent: float = 0.1
+    hdbscan_threshold_max_percent: float = 10.0
+    hdbscan_min_keep: float = 0.2
 
 
 @dataclass
@@ -71,6 +78,12 @@ def run_severi_detector_defense(
     batch_size: int = 8192,
     max_benign_rows: int | None = None,
     random_state: int = 42,
+    hdbscan_min_cluster_size: int | None = None,
+    hdbscan_min_cluster_percent: float = 0.5,
+    hdbscan_min_samples: int | None = None,
+    hdbscan_min_samples_percent: float = 0.1,
+    hdbscan_threshold_max_percent: float = 10.0,
+    hdbscan_min_keep: float = 0.2,
     overwrite: bool = False,
     dry_run: bool = False,
 ) -> SeveriDetectorResult | dict:
@@ -83,6 +96,12 @@ def run_severi_detector_defense(
         removal_percent=removal_percent,
         batch_size=batch_size,
         max_benign_rows=max_benign_rows,
+        hdbscan_min_cluster_size=hdbscan_min_cluster_size,
+        hdbscan_min_cluster_percent=hdbscan_min_cluster_percent,
+        hdbscan_min_samples=hdbscan_min_samples,
+        hdbscan_min_samples_percent=hdbscan_min_samples_percent,
+        hdbscan_threshold_max_percent=hdbscan_threshold_max_percent,
+        hdbscan_min_keep=hdbscan_min_keep,
     )
     output_path = resolve_output_dir(
         artifact_path=artifact_path,
@@ -95,6 +114,12 @@ def run_severi_detector_defense(
         spectral_oracle_poison_count=spectral_oracle_poison_count,
         standardize=standardize,
         max_benign_rows=max_benign_rows,
+        hdbscan_min_cluster_size=hdbscan_min_cluster_size,
+        hdbscan_min_cluster_percent=hdbscan_min_cluster_percent,
+        hdbscan_min_samples=hdbscan_min_samples,
+        hdbscan_min_samples_percent=hdbscan_min_samples_percent,
+        hdbscan_threshold_max_percent=hdbscan_threshold_max_percent,
+        hdbscan_min_keep=hdbscan_min_keep,
     )
 
     required = {
@@ -121,6 +146,12 @@ def run_severi_detector_defense(
             "standardize": standardize,
             "batch_size": batch_size,
             "max_benign_rows": max_benign_rows,
+            "hdbscan_min_cluster_size": hdbscan_min_cluster_size,
+            "hdbscan_min_cluster_percent": hdbscan_min_cluster_percent,
+            "hdbscan_min_samples": hdbscan_min_samples,
+            "hdbscan_min_samples_percent": hdbscan_min_samples_percent,
+            "hdbscan_threshold_max_percent": hdbscan_threshold_max_percent,
+            "hdbscan_min_keep": hdbscan_min_keep,
             "required_paths": {key: str(path) for key, path in required.items()},
         }
 
@@ -164,6 +195,12 @@ def run_severi_detector_defense(
     else:
         X_detector = X_selected
 
+    model_path = None
+    extra_score_columns: dict[str, np.ndarray] = {}
+    extra_output_files: dict[str, str | None] = {}
+    detector_details: dict[str, Any] = {}
+    hdbscan_result: dict[str, Any] | None = None
+    hdbscan_cluster_summary_path: Path | None = None
     if method == "isolation_forest":
         scores, default_remove_mask, fitted_model = isolation_forest_scores(
             X_detector,
@@ -172,6 +209,7 @@ def run_severi_detector_defense(
         )
         model_path = output_path / "isolation_forest.joblib"
         joblib.dump(fitted_model, model_path)
+        detector_details = {"contamination": contamination}
     elif method == "spectral_signature":
         scores = spectral_signature_scores(X_detector)
         default_remove_mask = spectral_default_remove_mask(
@@ -180,7 +218,43 @@ def run_severi_detector_defense(
             spectral_oracle_poison_count=spectral_oracle_poison_count,
             removal_percent=removal_percent,
         )
-        model_path = None
+        detector_details = {
+            "spectral_oracle_poison_count": spectral_oracle_poison_count,
+            "default_removal_percent": None if spectral_oracle_poison_count else removal_percent or 1.0,
+        }
+    elif method == "hdbscan":
+        hdbscan_result = hdbscan_severi_scores_and_mask(
+            X_detector,
+            poison_mask_benign=poison_mask_benign,
+            total_train_rows=int(X_all.shape[0]),
+            min_cluster_size=hdbscan_min_cluster_size,
+            min_cluster_percent=hdbscan_min_cluster_percent,
+            min_samples=hdbscan_min_samples,
+            min_samples_percent=hdbscan_min_samples_percent,
+            threshold_max_percent=hdbscan_threshold_max_percent,
+            min_keep=hdbscan_min_keep,
+            random_state=random_state,
+        )
+        scores = hdbscan_result["scores"]
+        default_remove_mask = hdbscan_result["remove_mask"]
+        fitted_model = hdbscan_result["model"]
+        model_path = output_path / "hdbscan.joblib"
+        joblib.dump(fitted_model, model_path)
+        labels_path = output_path / "hdbscan_labels.npy"
+        hdbscan_cluster_summary_path = output_path / "hdbscan_cluster_summary.csv"
+        np.save(labels_path, hdbscan_result["labels"])
+        extra_score_columns = {
+            "hdbscan_label": hdbscan_result["labels"].astype(np.int64, copy=False),
+            "cluster_avg_silhouette": hdbscan_result["cluster_avg_silhouette"],
+            "keep_probability": hdbscan_result["keep_probability"],
+            "hdbscan_probability": hdbscan_result["probabilities"],
+            "hdbscan_outlier_score": hdbscan_result["outlier_scores"],
+        }
+        extra_output_files = {
+            "hdbscan_labels": str(labels_path),
+            "hdbscan_cluster_summary": str(hdbscan_cluster_summary_path),
+        }
+        detector_details = hdbscan_result["details"]
     else:
         raise ValueError(f"Unsupported method: {method}")
 
@@ -195,6 +269,17 @@ def run_severi_detector_defense(
     remove_positions = np.flatnonzero(remove_mask).astype(np.int64, copy=False)
     metrics = removal_metrics(poison_mask_benign=poison_mask_benign, remove_mask=remove_mask)
 
+    if method == "hdbscan" and hdbscan_result is not None and hdbscan_cluster_summary_path is not None:
+        build_hdbscan_cluster_summary(
+            labels=hdbscan_result["labels"],
+            scores=scores,
+            remove_mask=remove_mask,
+            poison_mask_benign=poison_mask_benign,
+            cluster_avg_silhouette=hdbscan_result["cluster_avg_silhouette_by_label"],
+            probabilities=hdbscan_result["probabilities"],
+            outlier_scores=hdbscan_result["outlier_scores"],
+        ).to_csv(hdbscan_cluster_summary_path, index=False)
+
     scores_path = output_path / "suspicious_scores.csv"
     selected_features_path = output_path / "selected_features.csv"
     remove_path = output_path / "remove_watermarked_idx.npy"
@@ -205,6 +290,7 @@ def run_severi_detector_defense(
         poison_mask_benign=poison_mask_benign,
         scores=scores,
         remove_mask=remove_mask,
+        extra_columns=extra_score_columns,
     ).to_csv(scores_path, index=False)
     build_selected_features_df(
         selected_features=selected_features,
@@ -227,14 +313,24 @@ def run_severi_detector_defense(
         batch_size=batch_size,
         max_benign_rows=max_benign_rows,
         random_state=random_state,
+        hdbscan_min_cluster_size=hdbscan_min_cluster_size,
+        hdbscan_min_cluster_percent=hdbscan_min_cluster_percent,
+        hdbscan_min_samples=hdbscan_min_samples,
+        hdbscan_min_samples_percent=hdbscan_min_samples_percent,
+        hdbscan_threshold_max_percent=hdbscan_threshold_max_percent,
+        hdbscan_min_keep=hdbscan_min_keep,
     )
     metadata = {
         "method_note": (
-            "Notebook-style Isolation Forest / Spectral Signature detector port. "
+            "Notebook-style Severi detector port. Isolation Forest and Spectral "
+            "Signature follow the notebook helpers; HDBSCAN follows the original "
+            "defense_filtering.py clustering filter with selected benign features, "
+            "MinMax scaling, cluster silhouettes, and a min_keep sampling rule. "
             "Ground-truth poison labels are used only for diagnostics unless "
             "spectral_oracle_poison_count is true."
         ),
         "config": asdict(config),
+        "detector_details": detector_details,
         "threshold_mode": threshold_mode,
         "input_shape": {
             "watermarked_X": [int(X_all.shape[0]), int(X_all.shape[1])],
@@ -254,6 +350,7 @@ def run_severi_detector_defense(
             "remove_watermarked_idx": str(remove_path),
             "remove_benign_positions": str(remove_positions_path),
             "model": str(model_path) if model_path is not None else None,
+            **extra_output_files,
         },
         "runtime_seconds": time.time() - start_time,
     }
@@ -283,6 +380,12 @@ def validate_config(
     removal_percent: float | None,
     batch_size: int,
     max_benign_rows: int | None,
+    hdbscan_min_cluster_size: int | None,
+    hdbscan_min_cluster_percent: float,
+    hdbscan_min_samples: int | None,
+    hdbscan_min_samples_percent: float,
+    hdbscan_threshold_max_percent: float,
+    hdbscan_min_keep: float,
 ) -> None:
     if method not in SUPPORTED_METHODS:
         raise ValueError(f"method must be one of {sorted(SUPPORTED_METHODS)}, got {method!r}")
@@ -298,6 +401,18 @@ def validate_config(
         raise ValueError("batch_size must be positive")
     if max_benign_rows is not None and max_benign_rows <= 0:
         raise ValueError("max_benign_rows must be positive")
+    if hdbscan_min_cluster_size is not None and hdbscan_min_cluster_size < 2:
+        raise ValueError("hdbscan_min_cluster_size must be at least 2")
+    if not 0 < hdbscan_min_cluster_percent <= 100:
+        raise ValueError("hdbscan_min_cluster_percent must be in (0, 100]")
+    if hdbscan_min_samples is not None and hdbscan_min_samples < 1:
+        raise ValueError("hdbscan_min_samples must be positive")
+    if not 0 < hdbscan_min_samples_percent <= 100:
+        raise ValueError("hdbscan_min_samples_percent must be in (0, 100]")
+    if not 0 < hdbscan_threshold_max_percent <= 100:
+        raise ValueError("hdbscan_threshold_max_percent must be in (0, 100]")
+    if not 0 <= hdbscan_min_keep <= 1:
+        raise ValueError("hdbscan_min_keep must be in [0, 1]")
 
 
 def select_defense_feature_indices(
@@ -440,6 +555,202 @@ def spectral_default_remove_mask(
     return mask
 
 
+def hdbscan_severi_scores_and_mask(
+    X: np.ndarray,
+    *,
+    poison_mask_benign: np.ndarray,
+    total_train_rows: int,
+    min_cluster_size: int | None,
+    min_cluster_percent: float,
+    min_samples: int | None,
+    min_samples_percent: float,
+    threshold_max_percent: float,
+    min_keep: float,
+    random_state: int,
+) -> dict[str, Any]:
+    """Run the HDBSCAN clustering filter used by Severi's EMBER defense.
+
+    The original ``defense_filtering.py`` flow clusters selected goodware
+    features, computes average silhouette per cluster, and keeps each point with
+    probability ``(1 - normalized_cluster_silhouette) + min_keep`` for clusters
+    smaller than ``t_max``. Here we expose the complement of that keep
+    probability as a suspicious score and save the generated removal mask.
+    """
+    try:
+        import hdbscan
+    except ImportError as exc:
+        raise ImportError(
+            "HDBSCAN defense requires the optional 'hdbscan' package. Install it "
+            "in this environment, for example with `python3 -m pip install hdbscan`, "
+            "then rerun this command."
+        ) from exc
+
+    n_rows = int(X.shape[0])
+    count_base_rows = int(total_train_rows)
+    resolved_min_cluster_size = resolve_count(
+        explicit=min_cluster_size,
+        percent=min_cluster_percent,
+        total=count_base_rows,
+        minimum=2,
+    )
+    resolved_min_samples = resolve_count(
+        explicit=min_samples,
+        percent=min_samples_percent,
+        total=count_base_rows,
+        minimum=1,
+    )
+    threshold_max_size = resolve_count(
+        explicit=None,
+        percent=threshold_max_percent,
+        total=count_base_rows,
+        minimum=1,
+    )
+
+    model = hdbscan.HDBSCAN(
+        metric="euclidean",
+        core_dist_n_jobs=-1,
+        min_cluster_size=resolved_min_cluster_size,
+        min_samples=resolved_min_samples,
+    )
+    labels = model.fit_predict(X)
+    cluster_sizes = label_size_map(labels)
+
+    silhouettes, cluster_avg_silhouette, silhouette_status = safe_cluster_silhouettes(X, labels)
+    expanded_silhouette = np.asarray(
+        [
+            cluster_avg_silhouette.get(int(label), np.nan)
+            if cluster_sizes[int(label)] <= threshold_max_size
+            else -1.0
+            for label in labels
+        ],
+        dtype=np.float64,
+    )
+
+    if silhouette_status == "computed":
+        scaled_silhouette = minmax_vector(expanded_silhouette, feature_range=(0.0, 1.0))
+        keep_probability = np.clip((1.0 - scaled_silhouette) + float(min_keep), 0.0, 1.0)
+        scores = 1.0 - keep_probability
+        rng = np.random.RandomState(random_state)
+        remove_mask = keep_probability < rng.random_sample(n_rows)
+        score_mode = "severi_silhouette_min_keep"
+    else:
+        scores = hdbscan_fallback_scores(
+            labels=labels,
+            cluster_sizes=cluster_sizes,
+            threshold_max_size=threshold_max_size,
+            probabilities=getattr(model, "probabilities_", None),
+            outlier_scores=getattr(model, "outlier_scores_", None),
+        )
+        remove_mask = labels == -1
+        keep_probability = 1.0 - scores
+        score_mode = f"fallback_{silhouette_status}"
+
+    probabilities = np.asarray(getattr(model, "probabilities_", np.ones(n_rows)), dtype=np.float64)
+    outlier_scores = np.asarray(getattr(model, "outlier_scores_", np.zeros(n_rows)), dtype=np.float64)
+
+    return {
+        "model": model,
+        "labels": labels.astype(np.int64, copy=False),
+        "scores": scores.astype(np.float64, copy=False),
+        "remove_mask": remove_mask.astype(bool, copy=False),
+        "cluster_avg_silhouette": expanded_silhouette,
+        "cluster_avg_silhouette_by_label": cluster_avg_silhouette,
+        "keep_probability": keep_probability.astype(np.float64, copy=False),
+        "probabilities": probabilities,
+        "outlier_scores": outlier_scores,
+        "details": {
+            "score_mode": score_mode,
+            "silhouette_status": silhouette_status,
+            "min_cluster_size": int(resolved_min_cluster_size),
+            "min_cluster_percent": float(min_cluster_percent),
+            "min_samples": int(resolved_min_samples),
+            "min_samples_percent": float(min_samples_percent),
+            "count_base_rows": int(count_base_rows),
+            "threshold_max_size": int(threshold_max_size),
+            "threshold_max_percent": float(threshold_max_percent),
+            "min_keep": float(min_keep),
+            "cluster_count_including_noise": int(len(cluster_sizes)),
+            "noise_rows": int(np.sum(labels == -1)),
+        },
+    }
+
+
+def resolve_count(
+    *,
+    explicit: int | None,
+    percent: float,
+    total: int,
+    minimum: int,
+) -> int:
+    if explicit is not None:
+        return max(int(explicit), minimum)
+    return max(int(np.ceil(total * float(percent) / 100.0)), minimum)
+
+
+def label_size_map(labels: np.ndarray) -> dict[int, int]:
+    unique, counts = np.unique(labels.astype(np.int64, copy=False), return_counts=True)
+    return {int(label): int(count) for label, count in zip(unique, counts)}
+
+
+def safe_cluster_silhouettes(
+    X: np.ndarray,
+    labels: np.ndarray,
+) -> tuple[np.ndarray, dict[int, float], str]:
+    labels = labels.astype(np.int64, copy=False)
+    unique_labels = np.unique(labels)
+    if unique_labels.shape[0] < 2:
+        empty = np.full(labels.shape[0], np.nan, dtype=np.float64)
+        return empty, {int(unique_labels[0]): np.nan} if unique_labels.size else {}, "one_cluster"
+    if unique_labels.shape[0] >= labels.shape[0]:
+        empty = np.full(labels.shape[0], np.nan, dtype=np.float64)
+        return empty, {int(label): np.nan for label in unique_labels}, "too_many_clusters"
+
+    silhouettes = silhouette_samples(X, labels, metric="euclidean")
+    cluster_avg = {
+        int(label): float(np.mean(silhouettes[labels == label]))
+        for label in unique_labels
+    }
+    return silhouettes.astype(np.float64, copy=False), cluster_avg, "computed"
+
+
+def minmax_vector(values: np.ndarray, feature_range: tuple[float, float]) -> np.ndarray:
+    finite = np.isfinite(values)
+    if not np.any(finite):
+        return np.zeros_like(values, dtype=np.float64)
+    clean = values.copy()
+    clean[~finite] = np.nanmin(clean[finite])
+    min_value = float(np.min(clean))
+    max_value = float(np.max(clean))
+    low, high = feature_range
+    if max_value == min_value:
+        return np.full(clean.shape, low, dtype=np.float64)
+    scaled = (clean - min_value) / (max_value - min_value)
+    return scaled * (high - low) + low
+
+
+def hdbscan_fallback_scores(
+    *,
+    labels: np.ndarray,
+    cluster_sizes: dict[int, int],
+    threshold_max_size: int,
+    probabilities: np.ndarray | None,
+    outlier_scores: np.ndarray | None,
+) -> np.ndarray:
+    labels = labels.astype(np.int64, copy=False)
+    scores = np.zeros(labels.shape[0], dtype=np.float64)
+    for label, size in cluster_sizes.items():
+        mask = labels == label
+        if label == -1:
+            scores[mask] = 1.0
+        elif size <= threshold_max_size:
+            scores[mask] = max(0.0, 1.0 - (size / max(threshold_max_size, 1)))
+    if probabilities is not None:
+        scores = np.maximum(scores, 1.0 - np.asarray(probabilities, dtype=np.float64))
+    if outlier_scores is not None:
+        scores = np.maximum(scores, minmax_vector(np.asarray(outlier_scores, dtype=np.float64), (0.0, 1.0)))
+    return scores
+
+
 def top_percent_mask(scores: np.ndarray, percent: float) -> np.ndarray:
     remove_count = max(1, int(np.ceil(scores.shape[0] * percent / 100.0)))
     remove_count = min(remove_count, scores.shape[0])
@@ -455,17 +766,58 @@ def build_scores_df(
     poison_mask_benign: np.ndarray,
     scores: np.ndarray,
     remove_mask: np.ndarray,
+    extra_columns: dict[str, np.ndarray] | None = None,
 ) -> pd.DataFrame:
-    df = pd.DataFrame(
-        {
-            "benign_position": np.arange(benign_idx.shape[0], dtype=np.int64),
-            "watermarked_idx": benign_idx.astype(np.int64, copy=False),
-            "is_poisoned": poison_mask_benign.astype(bool, copy=False),
-            "suspicious_score": scores,
-            "remove": remove_mask.astype(bool, copy=False),
-        }
-    )
+    data = {
+        "benign_position": np.arange(benign_idx.shape[0], dtype=np.int64),
+        "watermarked_idx": benign_idx.astype(np.int64, copy=False),
+        "is_poisoned": poison_mask_benign.astype(bool, copy=False),
+        "suspicious_score": scores,
+        "remove": remove_mask.astype(bool, copy=False),
+    }
+    if extra_columns:
+        for name, values in extra_columns.items():
+            data[name] = values
+    df = pd.DataFrame(data)
     return df.sort_values("suspicious_score", ascending=False).reset_index(drop=True)
+
+
+def build_hdbscan_cluster_summary(
+    *,
+    labels: np.ndarray,
+    scores: np.ndarray,
+    remove_mask: np.ndarray,
+    poison_mask_benign: np.ndarray,
+    cluster_avg_silhouette: dict[int, float],
+    probabilities: np.ndarray,
+    outlier_scores: np.ndarray,
+) -> pd.DataFrame:
+    rows = []
+    for label in sorted(np.unique(labels).astype(np.int64).tolist()):
+        mask = labels == label
+        removed = remove_mask & mask
+        poisoned = poison_mask_benign & mask
+        rows.append(
+            {
+                "cluster_label": int(label),
+                "is_noise": bool(label == -1),
+                "rows": int(np.sum(mask)),
+                "row_fraction": float(np.mean(mask)),
+                "removed_rows": int(np.sum(removed)),
+                "removed_poisoned_rows": int(np.sum(removed & poison_mask_benign)),
+                "removed_clean_rows": int(np.sum(removed & ~poison_mask_benign)),
+                "poisoned_rows": int(np.sum(poisoned)),
+                "poison_fraction_within_cluster": float(np.mean(poison_mask_benign[mask])) if np.any(mask) else np.nan,
+                "mean_suspicious_score": float(np.mean(scores[mask])) if np.any(mask) else np.nan,
+                "mean_hdbscan_probability": float(np.mean(probabilities[mask])) if np.any(mask) else np.nan,
+                "mean_hdbscan_outlier_score": float(np.mean(outlier_scores[mask])) if np.any(mask) else np.nan,
+                "avg_silhouette": cluster_avg_silhouette.get(int(label), np.nan),
+            }
+        )
+    return pd.DataFrame(rows).sort_values(
+        ["removed_poisoned_rows", "mean_suspicious_score", "rows"],
+        ascending=[False, False, False],
+    )
 
 
 def build_selected_features_df(
@@ -559,6 +911,12 @@ def resolve_output_dir(
     spectral_oracle_poison_count: bool,
     standardize: bool,
     max_benign_rows: int | None,
+    hdbscan_min_cluster_size: int | None,
+    hdbscan_min_cluster_percent: float,
+    hdbscan_min_samples: int | None,
+    hdbscan_min_samples_percent: float,
+    hdbscan_threshold_max_percent: float,
+    hdbscan_min_keep: float,
 ) -> Path:
     if output_dir is not None:
         resolved = resolve_path(output_dir)
@@ -570,10 +928,27 @@ def resolve_output_dir(
             threshold_tag = f"contam{format_tag(contamination)}"
         else:
             threshold_tag = f"remove{format_tag(removal_percent)}p"
-    else:
+    elif method == "spectral_signature":
         threshold_tag = "oracle_poison_count" if spectral_oracle_poison_count else f"remove{format_tag(removal_percent or 1.0)}p"
+    elif method == "hdbscan":
+        mcs_tag = count_or_percent_tag(hdbscan_min_cluster_size, hdbscan_min_cluster_percent)
+        ms_tag = count_or_percent_tag(hdbscan_min_samples, hdbscan_min_samples_percent)
+        base_tag = (
+            f"mcs{mcs_tag}_ms{ms_tag}_"
+            f"tmax{format_tag(hdbscan_threshold_max_percent)}pct_"
+            f"keep{format_tag(hdbscan_min_keep)}"
+        )
+        threshold_tag = f"{base_tag}_remove{format_tag(removal_percent)}p" if removal_percent is not None else base_tag
+    else:
+        raise ValueError(f"Unsupported method: {method}")
     dirname = f"{method}_{feature_mode}_top{top_k}_{scale_tag}_{threshold_tag}{row_tag}"
     return artifact_path / "severi_detectors" / dirname
+
+
+def count_or_percent_tag(count: int | None, percent: float) -> str:
+    if count is not None:
+        return str(count)
+    return f"{format_tag(percent)}pct"
 
 
 def format_tag(value: str | float) -> str:

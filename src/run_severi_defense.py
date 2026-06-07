@@ -1,4 +1,4 @@
-"""Run notebook-style Isolation Forest or Spectral Signature defenses."""
+"""Run notebook-style Severi detector defenses."""
 
 from __future__ import annotations
 
@@ -64,6 +64,42 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=8192, help="Rows per selected-feature extraction batch.")
     parser.add_argument("--max-benign-rows", type=int, default=None, help="Smoke-test limit on benign rows.")
     parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument(
+        "--hdbscan-min-cluster-size",
+        type=int,
+        default=None,
+        help="Absolute HDBSCAN min_cluster_size. Overrides --hdbscan-min-cluster-percent.",
+    )
+    parser.add_argument(
+        "--hdbscan-min-cluster-percent",
+        type=float,
+        default=0.5,
+        help="HDBSCAN min_cluster_size as percent of watermarked training rows when no absolute size is given.",
+    )
+    parser.add_argument(
+        "--hdbscan-min-samples",
+        type=int,
+        default=None,
+        help="Absolute HDBSCAN min_samples. Overrides --hdbscan-min-samples-percent.",
+    )
+    parser.add_argument(
+        "--hdbscan-min-samples-percent",
+        type=float,
+        default=0.1,
+        help="HDBSCAN min_samples as percent of watermarked training rows when no absolute value is given.",
+    )
+    parser.add_argument(
+        "--hdbscan-threshold-max-percent",
+        type=float,
+        default=10.0,
+        help="Severi-style t_max: clusters larger than this training-row percent are kept.",
+    )
+    parser.add_argument(
+        "--hdbscan-min-keep",
+        type=float,
+        default=0.2,
+        help="Severi-style minimum keep probability for rows in filtered clusters.",
+    )
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -84,6 +120,12 @@ def main() -> None:
         batch_size=args.batch_size,
         max_benign_rows=args.max_benign_rows,
         random_state=args.random_state,
+        hdbscan_min_cluster_size=args.hdbscan_min_cluster_size,
+        hdbscan_min_cluster_percent=args.hdbscan_min_cluster_percent,
+        hdbscan_min_samples=args.hdbscan_min_samples,
+        hdbscan_min_samples_percent=args.hdbscan_min_samples_percent,
+        hdbscan_threshold_max_percent=args.hdbscan_threshold_max_percent,
+        hdbscan_min_keep=args.hdbscan_min_keep,
         overwrite=args.overwrite,
         dry_run=args.dry_run,
     )

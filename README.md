@@ -236,6 +236,19 @@ python3 -m run_component_trigger_matching \
   --removal-percent 1
 ```
 
+To run the same trigger-like feature-value mining without GMM, omit `--gmm-dir`.
+This treats all benign-labeled rows as one pseudo-component, so use
+`--component-rule all` or `--component-rule largest`:
+
+```bash
+python3 -m run_component_trigger_matching \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --component-rule all \
+  --pair-apply-scope global \
+  --row-rank matched_pairs \
+  --removal-percent 1
+```
+
 Useful `--component-rule` ablations include `largest`, `density_proxy_log`,
 `mean_global_mahalanobis`, `smallest_cov_volume`, `avg_log_likelihood`,
 `responsibility_entropy_mean`, and `trigger_weighted_lift_sum`.
@@ -252,84 +265,46 @@ python3 -m run_component_rule_sweep \
   --removal-percent 1
 ```
 
-## OPTICS Iterative Defense
+## HDBSCAN SHAP-Loss Defense
 
-Run a paper-described reimplementation of "Model-agnostic clean-label backdoor
-mitigation in cybersecurity environments" on a saved attack artifact:
+Run the paper-style SHAP-space clustering and loss-ranked filtering defense with
+HDBSCAN. It uses the saved SHAP/PCA representation from `run_defense_preprocess`
+as the clustering space. This command requires the optional Python package
+`hdbscan` for a full run; `--dry-run` can still validate paths without it:
 
 ```bash
-python3 -m run_optics_defense \
+python3 -m run_defense_preprocess \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative
+
+python3 -m run_hdbscan_shap_loss_defense \
   --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --top-features 16 \
-  --min-samples 50 \
-  --window-fraction 0.05 \
-  --clean-cluster-fraction 0.80 \
-  --selection-mode fixed_threshold \
+  --clean-fraction 0.80 \
+  --coverage-unit clusters \
+  --min-cluster-percent 0.5 \
+  --min-samples-percent 0.1 \
   --overwrite
 ```
 
-This defense selects the top entropy/decision-tree features, clusters
-benign-labeled rows with OPTICS, initializes the clean set with the largest
-cluster plus all malware-labeled rows, iteratively adds the lowest-loss 5% of
-clusters, and writes the suspicious cluster rows to `remove_watermarked_idx.npy`.
-It is based on the paper description, not the authors' original code.
-By default, outputs are written under
-`<artifact-dir>/optics_iterative/all_top16_fixed_threshold_clean80p_w5p/`.
+This defense clusters benign-labeled rows in `X_shap_reduced.npy`, trains a
+surrogate model on the largest benign cluster plus malware rows, scores clusters
+by benign log-loss, keeps the lowest-loss 80%, and writes the remaining benign
+rows to `remove_watermarked_idx.npy`. Poison labels are used only in the saved
+diagnostic columns, not to choose the removed rows.
 
-The filtering mode from the paper is the default. A loss-delta z-score variant
-is also available:
-
-```bash
-python3 -m run_optics_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --selection-mode loss_delta_z \
-  --delta-z-threshold 2 \
-  --delta-tail lower \
-  --overwrite
-```
-
-Retrain from the OPTICS removal indices:
+Retrain from the HDBSCAN SHAP-loss removal indices:
 
 ```bash
 python3 -m run_defense_retrain \
   --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/optics_iterative/all_top16_fixed_threshold_clean80p_w5p/remove_watermarked_idx.npy \
+  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/hdbscan_shap_loss/clusters_clean80p_mcs0p5pct_ms0p1pct_noisesplit/remove_watermarked_idx.npy \
   --baseline ember2018_20p \
-  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/optics_iterative/all_top16_fixed_threshold_clean80p_w5p/defended_retrain \
+  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/hdbscan_shap_loss/clusters_clean80p_mcs0p5pct_ms0p1pct_noisesplit/defended_retrain \
   --overwrite
 ```
 
-## MDR-Inspired Defense
-
-Run the MDR-inspired feature-value cleaning baseline on a saved attack artifact:
-
-```bash
-python3 -m run_mdr_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative \
-  --thresholds 3 4 5 6 7 8 9 10 11 12 \
-  --dict-size 40 \
-  --community-tolerance 0.8 \
-  --remove-scope all \
-  --overwrite
-```
-
-This is an MDR-inspired reimplementation from the paper description, not the
-authors' original implementation. It builds SHAP-guided goodware-oriented
-feature-value dictionaries, constructs thresholded intersection graphs, uses
-Louvain communities to choose a suspicious community by malware-score reduction,
-identifies enriched watermark-like feature-value elements, and writes
-`remove_watermarked_idx.npy` for retraining.
-
-Retrain from the MDR-inspired removal indices:
-
-```bash
-python3 -m run_defense_retrain \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative \
-  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative/mdr_inspired/remove_watermarked_idx.npy \
-  --baseline ember2018_20p \
-  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__combined_shap__combined_shap__problem_space_conservative/mdr_inspired/defended_retrain \
-  --overwrite
-```
+Use `--coverage-unit rows` if you want the 80% threshold to mean retained
+benign rows instead of retained clusters. Use `--dry-run` to validate paths
+without importing or running HDBSCAN.
 
 Retrain a defended model after removing the suspicious benign rows selected by
 GMM:
@@ -346,10 +321,10 @@ This stage loads `watermarked_X.npy` / `watermarked_y.npy`, removes
 when `--baseline` is provided. It also evaluates ASR on `watermarked_X_test.npy`.
 The outputs are written to `<gmm-dir>/defended_retrain/`.
 
-## Notebook-Style Isolation Forest and Spectral Signature
+## Notebook-Style Isolation Forest, Spectral Signature, and HDBSCAN
 
-Run the Isolation Forest or Spectral Signature detectors ported from the
-`backdoor_codex_*` notebook defense cells:
+Run the Isolation Forest, Spectral Signature, or HDBSCAN detectors ported from
+the Severi defense code and the `backdoor_codex_*` notebook defense cells:
 
 ```bash
 python3 -m run_severi_defense \
@@ -371,6 +346,19 @@ python3 -m run_severi_defense \
   --overwrite
 ```
 
+```bash
+python3 -m run_severi_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --method hdbscan \
+  --feature-mode hybrid \
+  --top-k 32 \
+  --hdbscan-min-cluster-percent 0.5 \
+  --hdbscan-min-samples-percent 0.1 \
+  --hdbscan-threshold-max-percent 10 \
+  --hdbscan-min-keep 0.2 \
+  --overwrite
+```
+
 The feature subspace follows the old notebook idea: `watermark` uses the actual
 watermark feature ids from `wm_config.npy`, `shap` uses the highest mean-absolute
 backdoored-model SHAP features, and `hybrid` starts with watermark features then
@@ -382,6 +370,14 @@ under `<artifact-dir>/severi_detectors/<settings>/`.
 default by removing the known number of poisoned benign rows. Treat that as a
 diagnostic budget because it uses ground-truth poison metadata. For a non-oracle
 run, prefer an explicit `--removal-percent`.
+
+The HDBSCAN path follows Severi's original `defense_filtering.py` idea more than
+a simple "remove density noise" rule: it clusters selected benign-labeled rows,
+computes cluster-average silhouettes, and removes rows from small high-silhouette
+clusters according to the `--hdbscan-min-keep` sampling rule. It also saves
+`hdbscan_labels.npy` and `hdbscan_cluster_summary.csv` so the clusters can be
+inspected. If `hdbscan` is not installed, install the optional package before
+running this method.
 
 Retrain from either detector's removal indices:
 
@@ -414,7 +410,7 @@ It tells us whether ASR would drop if suspicious-row detection were perfect.
 run_attack_baseline.py          CLI entry point
 run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
 run_gmm_defense.py              GMM-BIC/Mahalanobis scoring entry point
-run_optics_defense.py           OPTICS iterative filtering entry point
+run_hdbscan_shap_loss_defense.py HDBSCAN SHAP-space loss-ranked filtering entry point
 run_severi_defense.py           Isolation Forest / Spectral Signature detector entry point
 run_defense_retrain.py          defended retraining/evaluation entry point
 src/

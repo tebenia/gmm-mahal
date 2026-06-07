@@ -67,7 +67,7 @@ SUPPORTED_ROW_RANKS = {"trigger_score", "matched_pairs", "matched_pairs_then_sco
 @dataclass
 class ComponentTriggerConfig:
     artifact_dir: str
-    gmm_dir: str
+    gmm_dir: str | None
     output_dir: str
     component_rule: str = "global_z_max"
     top_components: int = 3
@@ -106,7 +106,7 @@ class ComponentTriggerResult:
 
 def run_component_trigger_matching(
     artifact_dir: str | Path,
-    gmm_dir: str | Path,
+    gmm_dir: str | Path | None = None,
     output_dir: str | Path | None = None,
     component_rule: str = "global_z_max",
     top_components: int = 3,
@@ -147,15 +147,18 @@ def run_component_trigger_matching(
     )
 
     artifact_path = _resolve_existing_dir(artifact_dir)
-    gmm_path = _resolve_existing_dir(gmm_dir)
-    output_path = resolve_output_dir(output_dir, gmm_path, component_rule, removal_percent)
+    gmm_path = _resolve_existing_dir(gmm_dir) if gmm_dir is not None else None
+    if gmm_path is None and component_rule == "global_z_max" and components is None:
+        component_rule = "all"
+    output_path = resolve_output_dir(output_dir, artifact_path, gmm_path, component_rule, removal_percent)
 
     required = {
         "watermarked_X": artifact_path / "watermarked_X.npy",
         "defense_metadata_npz": artifact_path / "defense_metadata.npz",
         "defense_metadata_json": artifact_path / "defense_metadata.json",
-        "suspicious_scores": gmm_path / "suspicious_scores.csv",
     }
+    if gmm_path is not None:
+        required["suspicious_scores"] = gmm_path / "suspicious_scores.csv"
     missing = [str(path) for path in required.values() if not path.exists()]
     if missing:
         raise FileNotFoundError(f"Missing required artifact(s): {', '.join(missing)}")
@@ -163,7 +166,7 @@ def run_component_trigger_matching(
     if dry_run:
         return {
             "artifact_dir": str(artifact_path),
-            "gmm_dir": str(gmm_path),
+            "gmm_dir": str(gmm_path) if gmm_path is not None else None,
             "output_dir": str(output_path),
             "required_paths": {key: str(path) for key, path in required.items()},
             "component_rule": component_rule,
@@ -179,12 +182,16 @@ def run_component_trigger_matching(
         raise FileExistsError(f"{metadata_path} already exists. Pass --overwrite to replace it.")
 
     start_time = time.time()
-    scores = pd.read_csv(required["suspicious_scores"])
-    if max_rows is not None:
-        scores = scores.iloc[: min(max_rows, len(scores))].copy()
+    X_all = _unwrap_saved_array(np.load(required["watermarked_X"], mmap_mode="r", allow_pickle=True))
+    meta = np.load(required["defense_metadata_npz"])
+    if gmm_path is None:
+        scores = build_global_scores_from_metadata(meta, max_rows=max_rows)
+    else:
+        scores = pd.read_csv(required["suspicious_scores"])
+        if max_rows is not None:
+            scores = scores.iloc[: min(max_rows, len(scores))].copy()
     validate_scores(scores)
 
-    X_all = _unwrap_saved_array(np.load(required["watermarked_X"], mmap_mode="r", allow_pickle=True))
     benign_idx = scores["watermarked_idx"].to_numpy(dtype=np.int64)
     if np.any(benign_idx < 0) or np.any(benign_idx >= X_all.shape[0]):
         raise ValueError("suspicious_scores.csv contains watermarked_idx outside watermarked_X.npy rows")
@@ -280,7 +287,7 @@ def run_component_trigger_matching(
         "config": asdict(
             ComponentTriggerConfig(
                 artifact_dir=str(artifact_path),
-                gmm_dir=str(gmm_path),
+                gmm_dir=str(gmm_path) if gmm_path is not None else None,
                 output_dir=str(output_path),
                 component_rule=component_rule,
                 top_components=top_components,
@@ -301,6 +308,7 @@ def run_component_trigger_matching(
             )
         ),
         "dataset": metadata_json.get("dataset"),
+        "component_source": "gmm" if gmm_path is not None else "global_all_benign",
         "input_shape": {
             "watermarked_X": list(X_all.shape),
             "benign_rows": int(benign_idx.shape[0]),
@@ -399,7 +407,7 @@ def validate_config(
 
 
 def validate_scores(scores: pd.DataFrame) -> None:
-    required_cols = {"watermarked_idx", "component", "is_poisoned"}
+    required_cols = {"benign_position", "watermarked_idx", "original_idx", "source_idx", "component", "is_poisoned"}
     missing = sorted(required_cols - set(scores.columns))
     if missing:
         raise KeyError(f"suspicious_scores.csv is missing columns: {missing}")
@@ -407,7 +415,8 @@ def validate_scores(scores: pd.DataFrame) -> None:
 
 def resolve_output_dir(
     output_dir: str | Path | None,
-    gmm_dir: Path,
+    artifact_dir: Path,
+    gmm_dir: Path | None,
     component_rule: str,
     removal_percent: float,
 ) -> Path:
@@ -415,7 +424,51 @@ def resolve_output_dir(
         resolved = resolve_path(output_dir)
         return resolved or Path(output_dir)
     remove_tag = f"{removal_percent:g}".replace(".", "p")
+    if gmm_dir is None:
+        return artifact_dir / "component_trigger_matching_no_gmm" / f"rule_{component_rule}_remove{remove_tag}p"
     return gmm_dir / "component_trigger_matching" / f"rule_{component_rule}_remove{remove_tag}p"
+
+
+def build_global_scores_from_metadata(meta: np.lib.npyio.NpzFile, max_rows: int | None) -> pd.DataFrame:
+    benign_idx = np.asarray(meta["benign_watermarked_idx"], dtype=np.int64).reshape(-1)
+    row_count = benign_idx.shape[0]
+    if max_rows is not None:
+        row_count = min(row_count, int(max_rows))
+    benign_idx = benign_idx[:row_count]
+
+    original_idx = _metadata_array_or_default(meta, "benign_original_idx", benign_idx, row_count)
+    source_idx = _metadata_array_or_default(meta, "benign_source_idx", benign_idx, row_count)
+    is_poisoned = aligned_poison_mask(meta, benign_idx)
+    return pd.DataFrame(
+        {
+            "benign_position": np.arange(row_count, dtype=np.int64),
+            "watermarked_idx": benign_idx,
+            "original_idx": original_idx,
+            "source_idx": source_idx,
+            "is_poisoned": is_poisoned,
+            "component": np.zeros(row_count, dtype=np.int64),
+        }
+    )
+
+
+def _metadata_array_or_default(
+    meta: np.lib.npyio.NpzFile,
+    key: str,
+    default: np.ndarray,
+    row_count: int,
+) -> np.ndarray:
+    if key in meta.files and meta[key].shape[0] >= row_count:
+        return np.asarray(meta[key][:row_count], dtype=np.int64)
+    return np.asarray(default[:row_count], dtype=np.int64)
+
+
+def aligned_poison_mask(meta: np.lib.npyio.NpzFile, benign_watermarked_idx: np.ndarray) -> np.ndarray:
+    if "poison_mask_benign" in meta.files and meta["poison_mask_benign"].shape[0] >= benign_watermarked_idx.shape[0]:
+        return np.asarray(meta["poison_mask_benign"][: benign_watermarked_idx.shape[0]], dtype=bool)
+    if "poison_mask_full" in meta.files:
+        full = np.asarray(meta["poison_mask_full"], dtype=bool)
+        return full[benign_watermarked_idx]
+    return np.zeros(benign_watermarked_idx.shape[0], dtype=bool)
 
 
 def feature_names_for_width(n_features: int) -> list[str]:
