@@ -404,6 +404,83 @@ python3 -m run_defense_retrain \
 This is not a deployable defense because it uses ground-truth poison labels.
 It tells us whether ASR would drop if suspicious-row detection were perfect.
 
+## DUBIOUS-Inspired Test-Time Detection
+
+Run a DUBIOUS-style input rejection diagnostic on saved attack artifacts:
+
+```bash
+python3 -m run_dubious_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --baseline ember2018_20p \
+  --magnitudes 10,20,30,40,50 \
+  --n-perturbations 100 \
+  --replacement benign_mean \
+  --feature-mode random \
+  --overwrite
+```
+
+This is a test-time detector, not a training-row sanitizer. It perturbs clean
+reference samples and watermarked malware samples, builds signatures from
+LightGBM raw-score mean, raw-score standard deviation, and prediction stability,
+then compares each test signature with clean signatures of the same predicted
+class using scaled L1 nearest-neighbor distance. The default `random` feature
+mode and `benign_mean` replacement follow the DUBIOUS PDF-malware experiment
+most closely: selected features are random, and their values are replaced with
+average benign values.
+
+Useful ablations:
+
+```bash
+python3 -m run_dubious_defense \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --baseline ember2018_20p \
+  --feature-mode shap_topk \
+  --top-k 50 \
+  --score-mode apc_l1 \
+  --replacement benign_mean \
+  --overwrite
+```
+
+Outputs are written under `<artifact-dir>/dubious_signatures/<settings>/`:
+`reference_signatures.csv`, `eval_signatures.csv`, `dubious_scores.csv`,
+`dubious_metrics.csv`, and `dubious_metadata.json`. The main metrics are
+watermarked detection rate, false positive rate on clean benign/malware,
+`detection_minus_max_fpr`, and ASR before/after rejection.
+
+## Detectability Diagnostics
+
+Run artifact-level detectability diagnostics on a saved attack artifact:
+
+```bash
+python3 -m run_detectability_diagnostics \
+  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --overwrite
+```
+
+Batch example for every saved EMBER2018 random artifact:
+
+```bash
+python3 -m run_detectability_diagnostics \
+  --artifact-glob "results/ember/20%/random-defense/attack_artifacts/*" \
+  --overwrite
+```
+
+This stage does not remove rows or retrain a model. It measures non-defense
+detectability signals from existing artifacts: marginal trigger-value rarity,
+joint trigger co-occurrence rarity, trigger-SHAP concentration, and a kNN
+trigger-subspace density proxy. Ground-truth poison labels from
+`defense_metadata.npz` are used only for evaluation metrics such as AUROC,
+average precision, and recall-at-budget.
+
+Outputs are written under `<artifact-dir>/detectability_diagnostics/<settings>/`:
+`detectability_summary.csv`, `trigger_marginal_rarity.csv`,
+`trigger_joint_rarity.csv`, `detectability_score_metrics.csv`,
+`detectability_row_scores.csv`, and `detectability_metadata.json`.
+
+Use `notebooks/07_detectability_diagnostics.ipynb` to aggregate these outputs,
+list artifact folders that still need diagnostics, and compare detectability
+against attack effectiveness from the saved `summary_df.csv` files.
+
 ## Source Layout
 
 ```text
@@ -412,10 +489,14 @@ run_defense_preprocess.py       SHAP scaler/PCA preprocessing entry point
 run_gmm_defense.py              GMM-BIC/Mahalanobis scoring entry point
 run_hdbscan_shap_loss_defense.py HDBSCAN SHAP-space loss-ranked filtering entry point
 run_severi_defense.py           Isolation Forest / Spectral Signature detector entry point
+run_dubious_defense.py          DUBIOUS-style test-time detector entry point
+run_detectability_diagnostics.py Trigger rarity / co-occurrence / SHAP diagnostics entry point
 run_defense_retrain.py          defended retraining/evaluation entry point
 src/
   run_attack_baseline.py        CLI implementation
+  run_detectability_diagnostics.py CLI implementation for detectability diagnostics
   attack/                       poisoning attack pipeline
+  analysis/                      artifact-level comparison and detectability utilities
   data/                         dataset and model loaders
   defense/                      defense preprocessing and scoring utilities
   features/                     EMBER feature names and selector classes
