@@ -108,15 +108,35 @@ def build_context(
 
     if spec["kind"] == "ember2018":
         data_dir = require_path(spec["data_dir"])
-        info_path = data_dir / spec.get("dataset_info_file", "dataset_info.json")
-        dataset_info = _load_dataset_info(info_path, fallback_rows=constants.train_sizes["ember"])
-        shap_path = require_path(spec["shap_path"])
+        if spec.get("shap_cache_dir"):
+            cache_key = ember2018_shap_cache_key(spec, model_path)
+            shap_cache_dir = require_path(spec["shap_cache_dir"])
+            shap_path = require_path(shap_cache_dir / f"shap_values_{cache_key}.pkl")
+            shap_index_path = require_path(shap_cache_dir / f"indices_{cache_key}.npy")
+            subset_rows = int(np.load(shap_index_path, mmap_mode="r").shape[0])
+            dataset_info = {
+                "source_dir": str(data_dir),
+                "target_dir": str(data_dir),
+                "subset_rows": subset_rows,
+                "train_fraction": float(spec["train_fraction"]),
+                "test_fraction": float(spec.get("test_fraction", 1.0)),
+                "subset_mode": spec.get("subset_mode", "balanced_stratified_random"),
+                "shap_cache_key": cache_key,
+            }
+        else:
+            info_path = data_dir / spec.get("dataset_info_file", "dataset_info.json")
+            dataset_info = _load_dataset_info(info_path, fallback_rows=constants.train_sizes["ember"])
+            shap_path = require_path(spec["shap_path"])
         data_utils.configure(
             {
                 "kind": "ember2018",
                 "dataset_id": dataset_id,
                 "data_dir": str(data_dir),
                 "feature_version": int(spec.get("feature_version", 2)),
+                "shap_index_path": str(shap_index_path) if shap_index_path else None,
+                "test_fraction": float(spec.get("test_fraction", 1.0)),
+                "subset_mode": spec.get("subset_mode", "stratified_random"),
+                "seed": int(spec.get("seed", 42)),
             }
         )
         constants.num_features["ember"] = int(spec.get("num_features", constants.num_features["ember"]))
@@ -273,6 +293,17 @@ def ember2024_shap_cache_key(spec: dict[str, Any], model_path: Path) -> str:
         spec.get("subset_mode", "stratified_random"),
         int(spec.get("seed", 42)),
         file_sha256(model_path)[:12],
+    )
+
+
+def ember2018_shap_cache_key(spec: dict[str, Any], model_path: Path) -> str:
+    return "ember2018_{}_train_{}_{}_seed{}_model{}_v{}".format(
+        spec.get("model", "lightgbm"),
+        fraction_tag(float(spec["train_fraction"])),
+        spec.get("subset_mode", "balanced_stratified_random"),
+        int(spec.get("seed", 42)),
+        file_sha256(model_path)[:12],
+        int(spec.get("feature_version", 2)),
     )
 
 

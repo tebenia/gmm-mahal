@@ -16,6 +16,41 @@ baselines:
   ember2018_20p:
     kind: ember2018
     dataset_id: ember
+    result_root: results/ember/20p_balanced
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 42
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: ../malwarebackdoors/ember2018/ember_model_2018.txt
+    shap_cache_dir: artifacts/shap_cache/ember2018
+    feature_selection:
+      - shap_largest_abs
+    value_selection:
+      - min_population_new
+      - argmin_Nv_sum_abs_shap
+      - quantile_05
+      - quantile_50
+      - quantile_95
+      - benign_prototype
+      - low_shap_signed
+      - frequency_bounded
+      - frequency_bounded_signed_shap
+      - corr_count_abs_shap
+    target_features: problem_space_conservative
+    sampling_strategies:
+      - distribution_based_distance
+    poison_rates:
+      - 0.05
+    watermark_sizes:
+      - 17
+    iterations: 1
+
+  ember2018_20p_legacy:
+    kind: ember2018
+    dataset_id: ember
     result_root: results/ember/20%
     train_fraction: 0.2
     test_fraction: 1.0
@@ -28,7 +63,7 @@ baselines:
       - shap_largest_abs
     value_selection:
       - min_population_new
-    target_features: feature_space_feasible
+    target_features: problem_space_conservative
     sampling_strategies:
       - random
     poison_rates:
@@ -47,19 +82,28 @@ baselines:
     subset_mode: stratified_random
     model: lightgbm
     data_root: ../ember2024/EMBER2024/data
-    model_path: ../ember2024/EMBER2024/examples/lgbm_win64_retrained.joblib
+    model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
     shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
     feature_selection:
-      - combined_shap
+      - shap_largest_abs
     value_selection:
-      - combined_shap
-    target_features: feature_space_feasible
+      - min_population_new
+      - argmin_Nv_sum_abs_shap
+      - quantile_05
+      - quantile_50
+      - quantile_95
+      - benign_prototype
+      - low_shap_signed
+      - frequency_bounded
+      - frequency_bounded_signed_shap
+      - corr_count_abs_shap
+    target_features: problem_space_conservative
     sampling_strategies:
-      - random
+      - distribution_based_distance
     poison_rates:
-      - 0.005
+      - 0.05
     watermark_sizes:
-      - 17
+      - 19
     iterations: 1
 
   ember2024_win32_06p:
@@ -75,14 +119,23 @@ baselines:
     model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win32.model
     shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win32
     feature_selection:
-      - combined_shap
+      - shap_largest_abs
     value_selection:
-      - combined_shap
-    target_features: feature_space_feasible
+      - min_population_new
+      - argmin_Nv_sum_abs_shap
+      - quantile_05
+      - quantile_50
+      - quantile_95
+      - benign_prototype
+      - low_shap_signed
+      - frequency_bounded
+      - frequency_bounded_signed_shap
+      - corr_count_abs_shap
+    target_features: problem_space_conservative
     sampling_strategies:
       - random
     poison_rates:
-      - 0.005
+      - 0.03
     watermark_sizes:
-      - 17
+      - 19
     iterations: 1

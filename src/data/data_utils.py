@@ -146,12 +146,30 @@ def load_ember_dataset():
             feature_version=feature_version,
         )
 
-    x_train = x_train.astype(dtype="float64")
-    x_test = x_test.astype(dtype="float64")
+    if ACTIVE_DATASET_CONFIG.get("shap_index_path"):
+        train_indices = np.asarray(np.load(require_path(ACTIVE_DATASET_CONFIG["shap_index_path"])), dtype=np.int64)
+        if np.any(train_indices < 0) or np.any(train_indices >= x_train.shape[0]):
+            raise ValueError("Cached train indices are out of range for EMBER2018")
+        x_train = np.asarray(x_train[train_indices], dtype="float64")
+        y_train = np.asarray(y_train[train_indices], dtype=np.float32)
+    else:
+        x_train = x_train.astype(dtype="float64")
+
     x_train = x_train[y_train != -1]
     y_train = y_train[y_train != -1]
-    x_test = x_test[y_test != -1]
-    y_test = y_test[y_test != -1]
+
+    test_indices = select_labeled_indices(
+        y_test,
+        float(ACTIVE_DATASET_CONFIG.get("test_fraction", 1.0)),
+        ACTIVE_DATASET_CONFIG.get("subset_mode", "stratified_random"),
+        int(ACTIVE_DATASET_CONFIG.get("seed", 42)),
+    )
+    x_test = np.asarray(x_test[test_indices], dtype="float64")
+    y_test = np.asarray(y_test[test_indices], dtype=np.float32)
+
+    if ACTIVE_DATASET_CONFIG.get("shap_index_path"):
+        print("EMBER2018 selected train label counts:", label_count_dict(y_train))
+        print("EMBER2018 selected test label counts:", label_count_dict(y_test))
     return x_train, y_train, x_test, y_test
 
 
@@ -248,6 +266,8 @@ def select_labeled_indices(y, percent, mode, seed):
         return labeled_indices
     if mode == "head":
         return labeled_indices[:selected_count]
+    if mode == "balanced_stratified_random":
+        return select_balanced_labeled_indices(labeled_indices, labeled_y, selected_count, seed)
     selected_indices, _, _, _ = train_test_split(
         labeled_indices,
         labeled_y,
@@ -256,6 +276,27 @@ def select_labeled_indices(y, percent, mode, seed):
         stratify=labeled_y,
     )
     return np.sort(selected_indices)
+
+
+def select_balanced_labeled_indices(labeled_indices, labeled_y, selected_count, seed):
+    labels = np.sort(np.unique(labeled_y))
+    per_class = selected_count // labels.shape[0]
+    remainder = selected_count % labels.shape[0]
+    rng = np.random.default_rng(seed)
+    selected_parts = []
+    for offset, label in enumerate(labels):
+        label_indices = labeled_indices[labeled_y == label]
+        class_count = per_class + (1 if offset < remainder else 0)
+        if label_indices.shape[0] < class_count:
+            raise ValueError(
+                "Cannot select {} rows for class {} from only {} available rows".format(
+                    class_count,
+                    label,
+                    label_indices.shape[0],
+                )
+            )
+        selected_parts.append(rng.choice(label_indices, size=class_count, replace=False))
+    return np.sort(np.concatenate(selected_parts).astype(np.int64))
 
 
 def label_count_dict(y):

@@ -16,6 +16,7 @@ Available baselines:
 
 ```text
 ember2018_20p
+ember2018_20p_legacy
 ember2024_win64_20p
 ember2024_win32_06p
 ```
@@ -29,6 +30,25 @@ python3 -m run_attack_baseline --baseline ember2024_win64_20p --dry-run
 ```
 
 By default, `configs/attack_baselines.yaml` points at the current local EMBER2018/EMBER2024 dataset, model, and SHAP cache locations. You can move those assets and edit the YAML paths without changing the code. New attack summary CSVs are written under this repository's `results/` tree. Use `--save-attack-artifacts` when you also need the large watermarked arrays and backdoored model for defense experiments.
+
+`ember2018_20p` now follows the EMBER2024-style cache mechanism: the source
+dataset remains in the original EMBER2018 folder, while the selected train rows
+are stored in an `indices_*.npy` file and clean-model SHAP values are stored in
+a matching `shap_values_*.pkl` file. The default EMBER2018 subset is balanced
+and reproducible with `subset_mode: balanced_stratified_random` and `seed: 42`.
+The old chunk-prefix materialized dataset is still available as
+`ember2018_20p_legacy`.
+
+Build or inspect a SHAP cache for a baseline:
+
+```bash
+python3 -m run_compute_shap_cache --baseline ember2018_20p --dry-run
+python3 -m run_compute_shap_cache --baseline ember2018_20p --num-chunks 20 --chunk-index 0
+python3 -m run_compute_shap_cache --baseline ember2018_20p --num-chunks 20 --merge-only
+```
+
+Run one chunk index at a time for large SHAP jobs, then merge after all chunks
+exist. The generated cache is ignored by Git under `artifacts/shap_cache/`.
 
 The attack runner can expand a small experiment grid from either YAML/JSON config
 or CLI overrides. These list fields are iterable:
