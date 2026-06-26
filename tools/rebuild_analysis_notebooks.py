@@ -82,6 +82,7 @@ pd.set_option("display.width", 220)
 sns.set_theme(style="whitegrid", context="notebook")
 
 PAPER_VALUE_SELECTORS = [
+    "combined_shap",
     "argmin_Nv_sum_abs_shap",
     "min_population_new",
     "low_shap_signed",

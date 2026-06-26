@@ -57,7 +57,14 @@ def get_feat_value_pairs(feat_sel, val_sel):
     }
     for feat in feat_sel:
         if feat in combined_feature_selectors:
-            pairs.append((feat, feat))
+            external_values = [
+                val for val in val_sel
+                if val not in feature_only_value_selectors
+            ]
+            if external_values:
+                pairs.extend((feat, val) for val in external_values)
+            else:
+                pairs.append((feat, feat))
         else:
             for val in val_sel:
                 if val in feature_only_value_selectors:

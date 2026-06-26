@@ -1,0 +1,126 @@
+baselines:
+  ember2018_combined_1p:
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/ember/20p_balanced/Poison rate 0.1
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 42
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: ../malwarebackdoors/ember2018/ember_model_2018.txt
+    shap_cache_dir: artifacts/shap_cache/ember2018
+    feature_selection: [combined_shap]
+    value_selection: [combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01]
+    watermark_sizes: [17]
+    iterations: 1
+
+  ember2018_combined_3p:
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/ember/20p_balanced/Poison Rate 0.3
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 42
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: ../malwarebackdoors/ember2018/ember_model_2018.txt
+    shap_cache_dir: artifacts/shap_cache/ember2018
+    feature_selection: [combined_shap]
+    value_selection: [combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.03]
+    watermark_sizes: [17]
+    iterations: 1
+
+  ember2018_combined_5p:
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/ember/20p_balanced/Poison rate 0.5
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 42
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: ../malwarebackdoors/ember2018/ember_model_2018.txt
+    shap_cache_dir: artifacts/shap_cache/ember2018
+    feature_selection: [combined_shap]
+    value_selection: [combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.05]
+    watermark_sizes: [17]
+    iterations: 1
+
+  ember2024_win64_combined_1p:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/ember2024/win64/Poison 0.1
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 42
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
+    shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
+    feature_selection: [combined_shap]
+    value_selection: [combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01]
+    watermark_sizes: [19]
+    iterations: 1
+
+  ember2024_win64_combined_3p:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/ember2024/win64/Poison 0.3
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 42
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
+    shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
+    feature_selection: [combined_shap]
+    value_selection: [combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.03]
+    watermark_sizes: [19]
+    iterations: 1
+
+  ember2024_win64_combined_5p:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/ember2024/win64/Poison 0.5
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 42
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
+    shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
+    feature_selection: [combined_shap]
+    value_selection: [combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.05]
+    watermark_sizes: [19]
+    iterations: 1

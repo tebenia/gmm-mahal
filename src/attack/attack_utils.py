@@ -621,11 +621,11 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                         if feat_value_selector is not None and hasattr(feat_value_selector, 'set_training_data'):
                             feat_value_selector.set_training_data(to_pass_x, y_train)
 
-                        elif feat_value_selector is None:
-                            feat_selector.X = to_pass_x
-
-                        elif feat_value_selector.X is None:
+                        elif feat_value_selector is not None and feat_value_selector.X is None:
                             feat_value_selector.X = to_pass_x
+
+                        if hasattr(feat_selector, 'X') and feat_selector.X is None:
+                            feat_selector.X = to_pass_x
 
                         # Make sure attack doesn't alter our dataset for the next attack
                         X_temp = copy.deepcopy(X_mw_poisoning_candidates)
@@ -642,7 +642,17 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                         else:
                             # Get the feature IDs that we'll use
                             start_time = time.time()
-                            watermark_features = feat_selector.get_features(watermark_feature_set_size)
+                            if hasattr(feat_selector, 'get_features'):
+                                watermark_features = feat_selector.get_features(watermark_feature_set_size)
+                            elif hasattr(feat_selector, 'get_feature_values'):
+                                watermark_features, _ = feat_selector.get_feature_values(
+                                    watermark_feature_set_size
+                                )
+                                print('Discarded provisional values from combined feature selection')
+                            else:
+                                raise TypeError(
+                                    'Feature selector {} cannot select features'.format(feat_selector.name)
+                                )
                             print('Selecting watermark features took {:.2f} seconds'.format(time.time() - start_time))
 
                             # Now select some values for those features
