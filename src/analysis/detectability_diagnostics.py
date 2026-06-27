@@ -55,8 +55,12 @@ class DetectabilityDiagnosticsConfig:
 class DetectabilityDiagnosticsResult:
     output_dir: str
     summary_path: str
+    footprint_summary_path: str
     marginal_rarity_path: str
+    value_frequency_path: str
     joint_rarity_path: str
+    cooccurrence_support_path: str
+    shap_footprint_path: str | None
     score_metrics_path: str
     row_scores_path: str | None
     metadata_path: str
@@ -115,8 +119,12 @@ def run_detectability_diagnostics(
         )
 
     summary_path = output_path / "detectability_summary.csv"
+    footprint_summary_path = output_path / "trigger_footprint_summary.csv"
     marginal_path = output_path / "trigger_marginal_rarity.csv"
+    value_frequency_path = output_path / "trigger_value_frequency.csv"
     joint_path = output_path / "trigger_joint_rarity.csv"
+    cooccurrence_support_path = output_path / "trigger_cooccurrence_support.csv"
+    shap_footprint_path = output_path / "trigger_shap_footprint.csv"
     metrics_path = output_path / "detectability_score_metrics.csv"
     row_scores_path = output_path / "detectability_row_scores.csv"
     metadata_path = output_path / "detectability_metadata.json"
@@ -130,6 +138,12 @@ def run_detectability_diagnostics(
             "optional_paths": {
                 "backdoored_model_benign_shap": str(artifact_path / "backdoored_model_benign_shap.npy"),
                 "defense_metadata_json": str(artifact_path / "defense_metadata.json"),
+            },
+            "output_files": {
+                "trigger_footprint_summary": str(footprint_summary_path),
+                "trigger_value_frequency": str(value_frequency_path),
+                "trigger_cooccurrence_support": str(cooccurrence_support_path),
+                "trigger_shap_footprint": str(shap_footprint_path),
             },
             "config": asdict(
                 DetectabilityDiagnosticsConfig(
@@ -249,17 +263,33 @@ def run_detectability_diagnostics(
 
     shap_path = artifact_path / "backdoored_model_benign_shap.npy"
     shap_status = "skipped" if skip_shap else "missing"
+    shap_feature_df = pd.DataFrame()
     if not skip_shap and shap_path.exists():
-        shap_scores = compute_shap_trigger_concentration(
+        shap_scores = compute_shap_trigger_footprint(
             shap_path=shap_path,
             benign_positions=benign_positions,
+            poison_mask=poison_mask_benign,
             watermark_feature_ids=watermark_feature_ids,
+            feature_names=feature_names,
+            watermark_values=watermark_values,
             n_features=n_features,
             batch_size=batch_size,
         )
+        shap_feature_df = shap_scores["feature_df"]
+        row_df["shap_trigger_signed_sum"] = shap_scores["trigger_signed_sum"]
+        row_df["shap_trigger_signed_mean"] = shap_scores["trigger_signed_mean"]
         row_df["shap_trigger_abs_sum"] = shap_scores["trigger_abs_sum"]
+        row_df["shap_trigger_abs_mean"] = shap_scores["trigger_abs_mean"]
         row_df["shap_total_abs_sum"] = shap_scores["total_abs_sum"]
         row_df["shap_trigger_abs_ratio"] = shap_scores["trigger_abs_ratio"]
+        add_score_diagnostics(
+            score_name="shap_trigger_abs_sum",
+            scores=shap_scores["trigger_abs_sum"],
+            labels=poison_mask_benign,
+            recall_percents=recall_values,
+            metric_rows=metric_rows,
+            summary_scores=summary_scores,
+        )
         add_score_diagnostics(
             score_name="shap_trigger_abs_ratio",
             scores=shap_scores["trigger_abs_ratio"],
@@ -268,6 +298,8 @@ def run_detectability_diagnostics(
             metric_rows=metric_rows,
             summary_scores=summary_scores,
         )
+        summary_scores.update(group_difference_summary("shap_trigger_signed_sum", shap_scores["trigger_signed_sum"], poison_mask_benign))
+        summary_scores.update(group_difference_summary("shap_trigger_abs_sum", shap_scores["trigger_abs_sum"], poison_mask_benign))
         summary_scores.update(group_difference_summary("shap_trigger_abs_ratio", shap_scores["trigger_abs_ratio"], poison_mask_benign))
         shap_status = "computed"
 
@@ -324,11 +356,16 @@ def run_detectability_diagnostics(
         **joint_summary,
         **summary_scores,
     }
+    footprint_summary = build_trigger_footprint_summary(summary)
 
     marginal_df.to_csv(marginal_path, index=False)
+    marginal_df.to_csv(value_frequency_path, index=False)
     joint_df.to_csv(joint_path, index=False)
+    joint_df.to_csv(cooccurrence_support_path, index=False)
+    shap_feature_df.to_csv(shap_footprint_path, index=False)
     pd.DataFrame(metric_rows).to_csv(metrics_path, index=False)
     pd.DataFrame([summary]).to_csv(summary_path, index=False)
+    pd.DataFrame([footprint_summary]).to_csv(footprint_summary_path, index=False)
     saved_row_scores_path: Path | None = row_scores_path if save_row_scores else None
     if saved_row_scores_path is not None:
         row_df.to_csv(saved_row_scores_path, index=False)
@@ -365,8 +402,12 @@ def run_detectability_diagnostics(
         "artifact_metadata": artifact_metadata,
         "output_files": {
             "detectability_summary": str(summary_path),
+            "trigger_footprint_summary": str(footprint_summary_path),
             "trigger_marginal_rarity": str(marginal_path),
+            "trigger_value_frequency": str(value_frequency_path),
             "trigger_joint_rarity": str(joint_path),
+            "trigger_cooccurrence_support": str(cooccurrence_support_path),
+            "trigger_shap_footprint": str(shap_footprint_path) if shap_status == "computed" else None,
             "detectability_score_metrics": str(metrics_path),
             "detectability_row_scores": str(saved_row_scores_path) if saved_row_scores_path is not None else None,
             "knn_reference_benign_positions": str(knn_reference_path) if not skip_density else None,
@@ -378,8 +419,12 @@ def run_detectability_diagnostics(
     return DetectabilityDiagnosticsResult(
         output_dir=str(output_path),
         summary_path=str(summary_path),
+        footprint_summary_path=str(footprint_summary_path),
         marginal_rarity_path=str(marginal_path),
+        value_frequency_path=str(value_frequency_path),
         joint_rarity_path=str(joint_path),
+        cooccurrence_support_path=str(cooccurrence_support_path),
+        shap_footprint_path=str(shap_footprint_path) if shap_status == "computed" else None,
         score_metrics_path=str(metrics_path),
         row_scores_path=str(saved_row_scores_path) if saved_row_scores_path is not None else None,
         metadata_path=str(metadata_path),
@@ -562,15 +607,29 @@ def build_joint_rarity_df(
                 "required_matching_features": required,
                 "clean_count": clean_count,
                 "clean_frequency": clean_freq,
+                "clean_neg_log10_frequency": -np.log10(np.clip(clean_freq, EPSILON, 1.0))
+                if np.isfinite(clean_freq)
+                else np.nan,
                 "poisoned_count": poison_count,
                 "poisoned_frequency": poison_freq,
+                "poison_only_support_ratio": poison_freq / max(clean_freq, EPSILON)
+                if np.isfinite(clean_freq) and np.isfinite(poison_freq)
+                else np.nan,
             }
         )
         summary[f"joint_threshold_{threshold_tag}_required_features"] = required
         summary[f"joint_threshold_{threshold_tag}_clean_count"] = clean_count
         summary[f"joint_threshold_{threshold_tag}_clean_frequency"] = clean_freq
+        summary[f"joint_threshold_{threshold_tag}_clean_neg_log10_frequency"] = (
+            -np.log10(np.clip(clean_freq, EPSILON, 1.0)) if np.isfinite(clean_freq) else np.nan
+        )
         summary[f"joint_threshold_{threshold_tag}_poisoned_count"] = poison_count
         summary[f"joint_threshold_{threshold_tag}_poisoned_frequency"] = poison_freq
+        summary[f"joint_threshold_{threshold_tag}_poison_only_support_ratio"] = (
+            poison_freq / max(clean_freq, EPSILON)
+            if np.isfinite(clean_freq) and np.isfinite(poison_freq)
+            else np.nan
+        )
 
     all_clean_frequency = summary.get("joint_threshold_100p_clean_frequency", np.nan)
     expected_independent = float(np.prod(np.clip(clean_frequencies, EPSILON, 1.0)))
@@ -583,14 +642,17 @@ def build_joint_rarity_df(
     return pd.DataFrame(rows), summary
 
 
-def compute_shap_trigger_concentration(
+def compute_shap_trigger_footprint(
     *,
     shap_path: Path,
     benign_positions: np.ndarray,
+    poison_mask: np.ndarray,
     watermark_feature_ids: np.ndarray,
+    feature_names: list[str],
+    watermark_values: np.ndarray,
     n_features: int,
     batch_size: int,
-) -> dict[str, np.ndarray]:
+) -> dict[str, Any]:
     shap = np.load(shap_path, mmap_mode="r")
     if shap.ndim != 2:
         raise ValueError(f"Expected 2D SHAP matrix at {shap_path}, got {shap.shape}")
@@ -605,21 +667,114 @@ def compute_shap_trigger_concentration(
             f"Requested benign SHAP position {int(np.max(benign_positions))}, but {shap_path} has {shap.shape[0]} rows"
         )
 
+    trigger_shap = np.empty((benign_positions.shape[0], watermark_feature_ids.shape[0]), dtype=np.float32)
     trigger_abs = np.empty(benign_positions.shape[0], dtype=np.float64)
+    trigger_signed = np.empty(benign_positions.shape[0], dtype=np.float64)
     total_abs = np.empty(benign_positions.shape[0], dtype=np.float64)
     for start in range(0, benign_positions.shape[0], batch_size):
         end = min(start + batch_size, benign_positions.shape[0])
         rows = benign_positions[start:end]
         batch = np.asarray(shap[rows, :shap_feature_width], dtype=np.float32)
+        trigger_batch = batch[:, watermark_feature_ids]
+        trigger_shap[start:end] = trigger_batch
         abs_batch = np.abs(batch).astype(np.float32, copy=False)
-        trigger_abs[start:end] = np.sum(abs_batch[:, watermark_feature_ids], axis=1, dtype=np.float64)
+        trigger_abs[start:end] = np.sum(np.abs(trigger_batch), axis=1, dtype=np.float64)
+        trigger_signed[start:end] = np.sum(trigger_batch, axis=1, dtype=np.float64)
         total_abs[start:end] = np.sum(abs_batch, axis=1, dtype=np.float64)
     ratio = np.divide(trigger_abs, total_abs, out=np.zeros_like(trigger_abs), where=total_abs > 0)
+    clean_mask = ~poison_mask.astype(bool, copy=False)
+    poison_mask = poison_mask.astype(bool, copy=False)
+    feature_rows = []
+    for col, feature_id in enumerate(watermark_feature_ids):
+        clean_values = trigger_shap[clean_mask, col]
+        poison_values = trigger_shap[poison_mask, col]
+        clean_abs = np.abs(clean_values)
+        poison_abs = np.abs(poison_values)
+        feature_rows.append(
+            {
+                "watermark_rank": col + 1,
+                "feature_id": int(feature_id),
+                "feature_name": feature_names[int(feature_id)] if int(feature_id) < len(feature_names) else f"feature_{int(feature_id)}",
+                "watermark_value": float(watermark_values[col]),
+                "clean_shap_signed_mean": float(np.mean(clean_values)) if clean_values.size else np.nan,
+                "poisoned_shap_signed_mean": float(np.mean(poison_values)) if poison_values.size else np.nan,
+                "poison_minus_clean_shap_signed_mean": (
+                    float(np.mean(poison_values)) - float(np.mean(clean_values))
+                    if clean_values.size and poison_values.size
+                    else np.nan
+                ),
+                "clean_shap_abs_mean": float(np.mean(clean_abs)) if clean_abs.size else np.nan,
+                "poisoned_shap_abs_mean": float(np.mean(poison_abs)) if poison_abs.size else np.nan,
+                "poison_minus_clean_shap_abs_mean": (
+                    float(np.mean(poison_abs)) - float(np.mean(clean_abs))
+                    if clean_abs.size and poison_abs.size
+                    else np.nan
+                ),
+                "clean_shap_signed_median": float(np.median(clean_values)) if clean_values.size else np.nan,
+                "poisoned_shap_signed_median": float(np.median(poison_values)) if poison_values.size else np.nan,
+                "clean_shap_abs_median": float(np.median(clean_abs)) if clean_abs.size else np.nan,
+                "poisoned_shap_abs_median": float(np.median(poison_abs)) if poison_abs.size else np.nan,
+            }
+        )
     return {
+        "trigger_signed_sum": trigger_signed,
+        "trigger_signed_mean": trigger_signed / float(max(1, watermark_feature_ids.shape[0])),
         "trigger_abs_sum": trigger_abs,
+        "trigger_abs_mean": trigger_abs / float(max(1, watermark_feature_ids.shape[0])),
         "total_abs_sum": total_abs,
         "trigger_abs_ratio": ratio,
+        "feature_df": pd.DataFrame(feature_rows),
     }
+
+
+def build_trigger_footprint_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """Small paper-facing subset of the full detectability summary."""
+    preferred_keys = [
+        "dataset_label",
+        "sampling_strategy",
+        "baseline_tag",
+        "model_family",
+        "feature_selector",
+        "value_selector",
+        "target_features",
+        "artifact_dir",
+        "diagnostic_output_dir",
+        "benign_rows_scored",
+        "clean_benign_rows_scored",
+        "poisoned_benign_rows_scored",
+        "watermark_feature_count",
+        "marginal_clean_frequency_min",
+        "marginal_clean_frequency_median",
+        "marginal_clean_frequency_mean",
+        "marginal_clean_frequency_max",
+        "marginal_neg_log10_frequency_sum",
+        "marginal_neg_log10_frequency_mean",
+        "joint_threshold_075p_required_features",
+        "joint_threshold_075p_clean_frequency",
+        "joint_threshold_075p_clean_neg_log10_frequency",
+        "joint_threshold_075p_poison_only_support_ratio",
+        "joint_threshold_100p_required_features",
+        "joint_threshold_100p_clean_frequency",
+        "joint_threshold_100p_clean_neg_log10_frequency",
+        "joint_threshold_100p_poison_only_support_ratio",
+        "joint_expected_independent_frequency",
+        "joint_all_lift_vs_independent",
+        "trigger_match_fraction_auroc",
+        "trigger_rarity_score_auroc",
+        "shap_status",
+        "shap_trigger_signed_sum_clean_mean",
+        "shap_trigger_signed_sum_poison_mean",
+        "shap_trigger_signed_sum_poison_minus_clean_mean",
+        "shap_trigger_abs_sum_clean_mean",
+        "shap_trigger_abs_sum_poison_mean",
+        "shap_trigger_abs_sum_poison_minus_clean_mean",
+        "shap_trigger_abs_sum_auroc",
+        "shap_trigger_abs_ratio_clean_mean",
+        "shap_trigger_abs_ratio_poison_mean",
+        "shap_trigger_abs_ratio_poison_minus_clean_mean",
+        "shap_trigger_abs_ratio_auroc",
+    ]
+    return {key: summary.get(key, np.nan) for key in preferred_keys}
 
 
 def compute_knn_trigger_density_scores(

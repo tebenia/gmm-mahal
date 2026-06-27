@@ -280,6 +280,15 @@ def load_attack_summaries(results_root: str | Path) -> pd.DataFrame:
     out["attack_effectiveness_percent"] = pd.to_numeric(
         out.get("evasions_success_percent"), errors="coerce"
     )
+    out["clean_model_original_test_accuracy_percent"] = pd.to_numeric(
+        out.get("orig_model_orig_test_set_accuracy"), errors="coerce"
+    )
+    out["clean_model_watermarked_test_accuracy_percent"] = pd.to_numeric(
+        out.get("orig_model_mw_test_set_accuracy"), errors="coerce"
+    )
+    out["clean_model_attack_test_accuracy_percent"] = (
+        out["clean_model_watermarked_test_accuracy_percent"]
+    )
     out["backdoored_clean_accuracy_percent"] = pd.to_numeric(
         out.get("new_model_orig_test_set_accuracy"), errors="coerce"
     )
@@ -698,6 +707,9 @@ def merge_effectiveness(
     ]
     attack_cols = keys + [
         "attack_effectiveness_percent",
+        "clean_model_original_test_accuracy_percent",
+        "clean_model_watermarked_test_accuracy_percent",
+        "clean_model_attack_test_accuracy_percent",
         "backdoored_clean_accuracy_percent",
         "poison_size",
         "watermark_size",
