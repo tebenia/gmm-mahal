@@ -139,3 +139,36 @@ baselines:
     watermark_sizes:
       - 19
     iterations: 1
+
+  ember2024_win64_20p_seed43:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/ember2024/win64_seed43
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 43
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
+    shap_cache_dir: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
+    feature_selection:
+      - shap_largest_abs
+    value_selection:
+      - min_population_new
+      - argmin_Nv_sum_abs_shap
+      - quantile_95
+      - benign_prototype
+      - low_shap_signed
+      - frequency_bounded_signed_shap
+      - corr_count_abs_shap
+    target_features: problem_space_conservative
+    sampling_strategies:
+      - random
+      - distribution_based_distance
+    poison_rates:
+      - 0.01
+    watermark_sizes:
+      - 19
+    iterations: 1
