@@ -18,3 +18,10 @@ external_artifacts:
   ember2024_win64_model: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
   ember2024_win32_shap_cache: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win32
   ember2024_win64_shap_cache: ../Severi Data Poisoning Attack/ember2024_shap_cache/Win64
+
+experiment_roots:
+  experiment_1_results: results/experiment 1
+  experiment_2_results: results/experiment 2
+  experiment_2_models: artifacts/experiment_2/models
+  experiment_2_shap_cache: artifacts/experiment_2/shap_cache
+  experiment_2_value_selector_cache: artifacts/experiment_2/value_selector_cache

@@ -16,7 +16,7 @@ baselines:
   ember2018_20p:
     kind: ember2018
     dataset_id: ember
-    result_root: results/ember/20p_balanced
+    result_root: results/experiment 1/ember/20p_balanced
     train_fraction: 0.2
     test_fraction: 1.0
     subset_mode: balanced_stratified_random
@@ -51,7 +51,7 @@ baselines:
   ember2018_20p_legacy:
     kind: ember2018
     dataset_id: ember
-    result_root: results/ember/20%
+    result_root: results/experiment 1/ember/20%
     train_fraction: 0.2
     test_fraction: 1.0
     model: lightgbm
@@ -75,7 +75,7 @@ baselines:
   ember2024_win64_20p:
     kind: ember2024
     dataset_id: ember2024_win64
-    result_root: results/ember2024/win64
+    result_root: results/experiment 1/ember2024/win64
     platform: Win64
     train_fraction: 0.2
     test_fraction: 1.0
@@ -109,7 +109,7 @@ baselines:
   ember2024_win32_06p:
     kind: ember2024
     dataset_id: ember2024_win32
-    result_root: results/ember2024/win32
+    result_root: results/experiment 1/ember2024/win32
     platform: Win32
     train_fraction: 0.0667
     test_fraction: 1.0
@@ -143,7 +143,7 @@ baselines:
   ember2024_win64_20p_seed43:
     kind: ember2024
     dataset_id: ember2024_win64
-    result_root: results/ember2024/win64_seed43
+    result_root: results/experiment 1/ember2024/win64_seed43
     platform: Win64
     train_fraction: 0.2
     test_fraction: 1.0

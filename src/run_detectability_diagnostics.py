@@ -33,7 +33,11 @@ def parse_args() -> argparse.Namespace:
         "--artifact-glob",
         action="append",
         default=None,
-        help="Glob for attack artifact directories, for example 'results/ember/20%%/*-defense/attack_artifacts/*'.",
+        help=(
+            "Glob for attack artifact directories, for example "
+            "'results/experiment 2/ember2018/seed_42/poison_rate_0p01/"
+            "*-defense/attack_artifacts/*'."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -123,4 +127,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -8,7 +8,11 @@ build/
 artifacts/**
 !artifacts/README.md
 !artifacts/**/.gitkeep
-results/
+results/**
+!results/experiment 1/
+!results/experiment 1/README.md
+!results/experiment 2/
+!results/experiment 2/README.md
 logs/
 
 # Local machine-specific config.

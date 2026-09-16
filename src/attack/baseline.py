@@ -69,12 +69,27 @@ def build_contexts(
 ) -> list[AttackContext]:
     spec = _merged_baseline_spec(baseline_id, overrides=overrides, config_path=config_path)
     sampling_strategies = _normalize_sampling_strategies(spec)
+    poison_rates = [
+        float(value)
+        for value in _as_list(spec.get("poison_rates", [0.005]), "poison_rates")
+    ]
+    partition_by_rate = bool(spec.get("partition_results_by_poison_rate", False))
     contexts = []
     for sampling_strategy in sampling_strategies:
-        context_overrides = dict(overrides or {})
-        context_overrides.pop("sampling_strategies", None)
-        context_overrides["sampling_strategy"] = sampling_strategy
-        contexts.append(build_context(baseline_id, overrides=context_overrides, config_path=config_path))
+        rates_for_context = poison_rates if partition_by_rate else [None]
+        for poison_rate in rates_for_context:
+            context_overrides = dict(overrides or {})
+            context_overrides.pop("sampling_strategies", None)
+            context_overrides["sampling_strategy"] = sampling_strategy
+            if poison_rate is not None:
+                context_overrides["poison_rates"] = [poison_rate]
+            contexts.append(
+                build_context(
+                    baseline_id,
+                    overrides=context_overrides,
+                    config_path=config_path,
+                )
+            )
     return contexts
 
 
@@ -183,8 +198,21 @@ def build_context(
 
     model_utils.configure({"model_path": str(model_path)})
 
-    result_base_dir = project_path(*Path(spec["result_root"]).parts) / spec["sampling_strategy"]
-    value_selector_cache_dir = project_path("build", "cache", dataset_id)
+    result_root = project_path(*Path(spec["result_root"]).parts)
+    if spec.get("partition_results_by_poison_rate", False):
+        if len(spec["poison_rates"]) != 1:
+            raise ValueError(
+                "partition_results_by_poison_rate requires one poison rate per context; "
+                "use build_contexts to expand a multi-rate baseline"
+            )
+        result_root = result_root / f"poison_rate_{fraction_tag(spec['poison_rates'][0])}"
+    result_base_dir = result_root / spec["sampling_strategy"]
+    configured_selector_cache = spec.get("value_selector_cache_dir")
+    value_selector_cache_dir = (
+        project_path(*Path(configured_selector_cache).parts)
+        if configured_selector_cache
+        else project_path("build", "cache", dataset_id)
+    )
     attack_utils.VALUE_SELECTOR_CACHE_DIR = str(value_selector_cache_dir)
     attack_utils.DYNAMIC_TRAIN_SAMPLING_STRATEGY = spec["sampling_strategy"]
     attack_utils.DYNAMIC_TRAIN_SAMPLING_CONFIG = dict(SAMPLING_CONFIG_DEFAULT)

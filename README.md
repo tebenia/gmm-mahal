@@ -4,7 +4,18 @@ Experiment harness for SHAP-space GMM-Mahalanobis defense work connected to the 
 
 The attack and defense code lives in this repository. Large datasets, saved models, and cached SHAP values are referenced by configurable paths instead of being duplicated.
 
-## Attack Baseline Runner
+## Experiment Layout
+
+- `results/experiment 1` contains the historical provider-model experiments.
+- `results/experiment 2` is reserved for locally trained, seed-specific models.
+- `artifacts/experiment_2` stores Experiment 2 models, SHAP caches, and
+  seed-isolated value-selector caches.
+- The EMBER2018 and EMBER2024 datasets remain in their external source folders.
+
+See `docs/experiment_2_layout.md` for the complete dataset, seed, poison-rate,
+sampling, model, and SHAP directory structure.
+
+## Experiment 1 Attack Baseline Runner
 
 Run the notebook-equivalent data poisoning attack from Python files:
 
@@ -29,7 +40,17 @@ python3 -m run_attack_baseline --baseline ember2018_20p --sampling wasserstein_d
 python3 -m run_attack_baseline --baseline ember2024_win64_20p --dry-run
 ```
 
-By default, `configs/attack_baselines.yaml` points at the current local EMBER2018/EMBER2024 dataset, model, and SHAP cache locations. You can move those assets and edit the YAML paths without changing the code. New attack summary CSVs are written under this repository's `results/` tree. Use `--save-attack-artifacts` when you also need the large watermarked arrays and backdoored model for defense experiments.
+`configs/attack_baselines.yaml` and `configs/combined_shap_matrix.yaml` now point
+to the moved historical collection under `results/experiment 1`. Treat those
+baselines as historical replays; running them with artifact-saving options can
+replace files in Experiment 1.
+
+Experiment 2 is defined separately in `configs/experiment_2.yaml`. Its expected
+clean-model paths are placeholders until model training is implemented and run.
+The attack runner partitions a multi-rate Experiment 2 baseline into distinct
+`poison_rate_0p01`, `poison_rate_0p03`, and `poison_rate_0p05` directories.
+Use `--save-attack-artifacts` when the full watermarked arrays and backdoored
+model are needed for defense experiments.
 
 `ember2018_20p` now follows the EMBER2024-style cache mechanism: the source
 dataset remains in the original EMBER2018 folder, while the selected train rows
@@ -39,7 +60,7 @@ and reproducible with `subset_mode: balanced_stratified_random` and `seed: 42`.
 The old chunk-prefix materialized dataset is still available as
 `ember2018_20p_legacy`.
 
-Build or inspect a SHAP cache for a baseline:
+Build or inspect an Experiment 1 SHAP cache:
 
 ```bash
 python3 -m run_compute_shap_cache --baseline ember2018_20p --dry-run
@@ -48,7 +69,8 @@ python3 -m run_compute_shap_cache --baseline ember2018_20p --num-chunks 20 --mer
 ```
 
 Run one chunk index at a time for large SHAP jobs, then merge after all chunks
-exist. The generated cache is ignored by Git under `artifacts/shap_cache/`.
+exist. Experiment 1 caches remain under `artifacts/shap_cache/`. Experiment 2
+caches will be written under `artifacts/experiment_2/shap_cache/<dataset>/<seed>`.
 
 The attack runner can expand a small experiment grid from either YAML/JSON config
 or CLI overrides. These list fields are iterable:
@@ -217,7 +239,7 @@ Preprocess an attack artifact's benign SHAP matrix before fitting GMMs:
 
 ```bash
 python3 -m run_defense_preprocess \
-  --artifact-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative
+  --artifact-dir results/experiment\ 1/ember2024/win64/Poison\ 0.1/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative
 ```
 
 The default defense representation is StandardScaler plus fixed 50-component
@@ -231,7 +253,7 @@ Run GMM-BIC/Mahalanobis scoring on the preprocessed representation:
 
 ```bash
 python3 -m run_gmm_defense \
-  --preprocess-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative/defense_preprocessing/standardized_pca50
+  --preprocess-dir results/experiment\ 1/ember2024/win64/Poison\ 0.1/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative/defense_preprocessing/standardized_pca50
 ```
 
 The default GMM grid uses `covariance_type=diag`, `K=1..10`, `reg_covar=1e-6`,
@@ -247,8 +269,8 @@ or feature-value enrichment to choose which components to mine:
 
 ```bash
 python3 -m run_component_trigger_matching \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --gmm-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-20_reg1em06_remove1p \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --gmm-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-20_reg1em06_remove1p \
   --component-rule density_proxy_log \
   --top-components 3 \
   --pair-apply-scope global \
@@ -262,7 +284,7 @@ This treats all benign-labeled rows as one pseudo-component, so use
 
 ```bash
 python3 -m run_component_trigger_matching \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --component-rule all \
   --pair-apply-scope global \
   --row-rank matched_pairs \
@@ -277,8 +299,8 @@ To run those ablations as one sweep:
 
 ```bash
 python3 -m run_component_rule_sweep \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --gmm-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-20_reg1em06_remove1p \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --gmm-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-20_reg1em06_remove1p \
   --top-components 3 \
   --pair-apply-scope global \
   --row-rank matched_pairs \
@@ -294,10 +316,10 @@ as the clustering space. This command requires the optional Python package
 
 ```bash
 python3 -m run_defense_preprocess \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative
 
 python3 -m run_hdbscan_shap_loss_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --clean-fraction 0.80 \
   --coverage-unit clusters \
   --min-cluster-percent 0.5 \
@@ -315,10 +337,10 @@ Retrain from the HDBSCAN SHAP-loss removal indices:
 
 ```bash
 python3 -m run_defense_retrain \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/hdbscan_shap_loss/clusters_clean80p_mcs0p5pct_ms0p1pct_noisesplit/remove_watermarked_idx.npy \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --remove-watermarked-idx results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/hdbscan_shap_loss/clusters_clean80p_mcs0p5pct_ms0p1pct_noisesplit/remove_watermarked_idx.npy \
   --baseline ember2018_20p \
-  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/hdbscan_shap_loss/clusters_clean80p_mcs0p5pct_ms0p1pct_noisesplit/defended_retrain \
+  --output-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/hdbscan_shap_loss/clusters_clean80p_mcs0p5pct_ms0p1pct_noisesplit/defended_retrain \
   --overwrite
 ```
 
@@ -331,8 +353,8 @@ GMM:
 
 ```bash
 python3 -m run_defense_retrain \
-  --artifact-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative \
-  --gmm-dir results/ember2024/win64/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-10_reg1em06_remove1p \
+  --artifact-dir results/experiment\ 1/ember2024/win64/Poison\ 0.1/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative \
+  --gmm-dir results/experiment\ 1/ember2024/win64/Poison\ 0.1/random-defense/attack_artifacts/ember2024_win64__lightgbm__combined_shap__combined_shap__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-10_reg1em06_remove1p \
   --baseline ember2024_win64_20p
 ```
 
@@ -348,7 +370,7 @@ the Severi defense code and the `backdoor_codex_*` notebook defense cells:
 
 ```bash
 python3 -m run_severi_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --method isolation_forest \
   --feature-mode hybrid \
   --top-k 32 \
@@ -358,7 +380,7 @@ python3 -m run_severi_defense \
 
 ```bash
 python3 -m run_severi_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --method spectral_signature \
   --feature-mode hybrid \
   --top-k 32 \
@@ -368,7 +390,7 @@ python3 -m run_severi_defense \
 
 ```bash
 python3 -m run_severi_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --method hdbscan \
   --feature-mode hybrid \
   --top-k 32 \
@@ -403,10 +425,10 @@ Retrain from either detector's removal indices:
 
 ```bash
 python3 -m run_defense_retrain \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --remove-watermarked-idx results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/severi_detectors/spectral_signature_hybrid_top32_scaled_remove1p/remove_watermarked_idx.npy \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --remove-watermarked-idx results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/severi_detectors/spectral_signature_hybrid_top32_scaled_remove1p/remove_watermarked_idx.npy \
   --baseline ember2018_20p \
-  --output-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/severi_detectors/spectral_signature_hybrid_top32_scaled_remove1p/defended_retrain \
+  --output-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/severi_detectors/spectral_signature_hybrid_top32_scaled_remove1p/defended_retrain \
   --overwrite
 ```
 
@@ -415,8 +437,8 @@ selection:
 
 ```bash
 python3 -m run_defense_retrain \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
-  --gmm-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-10_reg1em06_remove1p \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --gmm-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative/defense_preprocessing/standardized_pca50/gmm_defense/cov_diag_k1-10_reg1em06_remove1p \
   --baseline ember2018_20p \
   --oracle-remove-poisoned
 ```
@@ -430,7 +452,7 @@ Run a DUBIOUS-style input rejection diagnostic on saved attack artifacts:
 
 ```bash
 python3 -m run_dubious_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --baseline ember2018_20p \
   --magnitudes 10,20,30,40,50 \
   --n-perturbations 100 \
@@ -452,7 +474,7 @@ Useful ablations:
 
 ```bash
 python3 -m run_dubious_defense \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --baseline ember2018_20p \
   --feature-mode shap_topk \
   --top-k 50 \
@@ -473,7 +495,7 @@ Run artifact-level detectability diagnostics on a saved attack artifact:
 
 ```bash
 python3 -m run_detectability_diagnostics \
-  --artifact-dir results/ember/20%/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
+  --artifact-dir results/experiment\ 1/ember/20p_balanced/Poison\ rate\ 0.1/random-defense/attack_artifacts/ember__lightgbm__shap_largest_abs__min_population_new__problem_space_conservative \
   --overwrite
 ```
 
@@ -481,7 +503,7 @@ Batch example for every saved EMBER2018 random artifact:
 
 ```bash
 python3 -m run_detectability_diagnostics \
-  --artifact-glob "results/ember/20%/random-defense/attack_artifacts/*" \
+  --artifact-glob "results/experiment 1/ember/20p_balanced/Poison rate 0.1/random-defense/attack_artifacts/*" \
   --overwrite
 ```
 

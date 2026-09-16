@@ -1,0 +1,147 @@
+# Experiment 2: locally trained clean models on seed-specific 20% subsets.
+#
+# The dataset files stay in their external source directories. Model and SHAP
+# paths below are reserved destinations; the files do not exist until the
+# corresponding training and SHAP stages are run.
+#
+# partition_results_by_poison_rate expands a multi-rate baseline into separate
+# contexts so summaries and defense artifacts cannot overwrite another rate.
+
+baselines:
+  ember2018_20p_seed42:
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/experiment 2/ember2018/seed_42
+    partition_results_by_poison_rate: true
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 42
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: artifacts/experiment_2/models/ember2018/seed_42/clean_model.txt
+    shap_cache_dir: artifacts/experiment_2/shap_cache/ember2018/seed_42
+    value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2018/seed_42
+    feature_selection: [shap_largest_abs, combined_shap]
+    value_selection: [min_population_new, argmin_Nv_sum_abs_shap, quantile_05, quantile_50, quantile_95, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap, combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01, 0.03, 0.05]
+    watermark_sizes: [17]
+    iterations: 1
+
+  ember2018_20p_seed43:
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/experiment 2/ember2018/seed_43
+    partition_results_by_poison_rate: true
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 43
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: artifacts/experiment_2/models/ember2018/seed_43/clean_model.txt
+    shap_cache_dir: artifacts/experiment_2/shap_cache/ember2018/seed_43
+    value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2018/seed_43
+    feature_selection: [shap_largest_abs, combined_shap]
+    value_selection: [min_population_new, argmin_Nv_sum_abs_shap, quantile_05, quantile_50, quantile_95, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap, combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01, 0.03, 0.05]
+    watermark_sizes: [17]
+    iterations: 1
+
+  ember2018_20p_seed44:
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/experiment 2/ember2018/seed_44
+    partition_results_by_poison_rate: true
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 44
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: artifacts/experiment_2/models/ember2018/seed_44/clean_model.txt
+    shap_cache_dir: artifacts/experiment_2/shap_cache/ember2018/seed_44
+    value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2018/seed_44
+    feature_selection: [shap_largest_abs, combined_shap]
+    value_selection: [min_population_new, argmin_Nv_sum_abs_shap, quantile_05, quantile_50, quantile_95, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap, combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01, 0.03, 0.05]
+    watermark_sizes: [17]
+    iterations: 1
+
+  ember2024_win64_20p_seed42:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/experiment 2/ember2024_win64/seed_42
+    partition_results_by_poison_rate: true
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 42
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: artifacts/experiment_2/models/ember2024_win64/seed_42/clean_model.txt
+    shap_cache_dir: artifacts/experiment_2/shap_cache/ember2024_win64/seed_42
+    value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2024_win64/seed_42
+    feature_selection: [shap_largest_abs, combined_shap]
+    value_selection: [min_population_new, argmin_Nv_sum_abs_shap, quantile_05, quantile_50, quantile_95, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap, combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01, 0.03, 0.05]
+    watermark_sizes: [19]
+    iterations: 1
+
+  ember2024_win64_20p_seed43:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/experiment 2/ember2024_win64/seed_43
+    partition_results_by_poison_rate: true
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 43
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: artifacts/experiment_2/models/ember2024_win64/seed_43/clean_model.txt
+    shap_cache_dir: artifacts/experiment_2/shap_cache/ember2024_win64/seed_43
+    value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2024_win64/seed_43
+    feature_selection: [shap_largest_abs, combined_shap]
+    value_selection: [min_population_new, argmin_Nv_sum_abs_shap, quantile_05, quantile_50, quantile_95, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap, combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01, 0.03, 0.05]
+    watermark_sizes: [19]
+    iterations: 1
+
+  ember2024_win64_20p_seed44:
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/experiment 2/ember2024_win64/seed_44
+    partition_results_by_poison_rate: true
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 44
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: artifacts/experiment_2/models/ember2024_win64/seed_44/clean_model.txt
+    shap_cache_dir: artifacts/experiment_2/shap_cache/ember2024_win64/seed_44
+    value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2024_win64/seed_44
+    feature_selection: [shap_largest_abs, combined_shap]
+    value_selection: [min_population_new, argmin_Nv_sum_abs_shap, quantile_05, quantile_50, quantile_95, benign_prototype, low_shap_signed, frequency_bounded, frequency_bounded_signed_shap, corr_count_abs_shap, combined_shap]
+    target_features: problem_space_conservative
+    sampling_strategies: [random, distribution_based_distance]
+    poison_rates: [0.01, 0.03, 0.05]
+    watermark_sizes: [19]
+    iterations: 1

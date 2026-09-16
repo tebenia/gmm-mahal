@@ -48,7 +48,7 @@ if PROJECT_ROOT.name == "notebooks":
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-RESULTS_ROOT = PROJECT_ROOT / "results"
+RESULTS_ROOT = PROJECT_ROOT / "results" / "experiment 1"
 MPLCONFIGDIR = PROJECT_ROOT / "build" / "matplotlib"
 MPLCONFIGDIR.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIGDIR))

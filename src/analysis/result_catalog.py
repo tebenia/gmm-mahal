@@ -67,9 +67,10 @@ FALLBACK_TRAIN_ROWS = {
 }
 
 _POISON_FOLDER_RE = re.compile(
-    r"poison(?:ing)?(?:\s+rate)?[\s_-]*([0-9]+(?:[p.][0-9]+)?)",
+    r"poison(?:ing)?(?:[\s_-]+rate)?[\s_-]*([0-9]+(?:[p.][0-9]+)?)",
     flags=re.IGNORECASE,
 )
+_SEED_FOLDER_RE = re.compile(r"seed[\s_-]*([0-9]+)", flags=re.IGNORECASE)
 
 
 def project_root_from_cwd(cwd: str | Path | None = None) -> Path:
@@ -130,18 +131,26 @@ def _dataset_context(parts: list[str]) -> dict[str, Any]:
             "dataset_family": "unknown",
             "platform": None,
         }
-    if parts[0] == "ember":
-        dataset_path = "/".join(parts[:2]) if len(parts) > 1 else "ember"
+    if parts[0] in {"ember", "ember2018"}:
+        dataset_path = (
+            parts[0]
+            if parts[0] == "ember2018"
+            else "/".join(parts[:2]) if len(parts) > 1 else "ember"
+        )
         return {
             "dataset_path": dataset_path,
             "dataset_label": "EMBER2018",
             "dataset_family": "ember2018",
             "platform": None,
         }
-    if parts[0] == "ember2024":
-        platform = parts[1].lower() if len(parts) > 1 else None
+    if parts[0] in {"ember2024", "ember2024_win64", "ember2024_win32"}:
+        if parts[0].startswith("ember2024_"):
+            platform = parts[0].removeprefix("ember2024_")
+            dataset_path = parts[0]
+        else:
+            platform = parts[1].lower() if len(parts) > 1 else None
+            dataset_path = "/".join(parts[:2]) if len(parts) > 1 else "ember2024"
         label = f"EMBER2024 {platform.upper()}" if platform else "EMBER2024"
-        dataset_path = "/".join(parts[:2]) if len(parts) > 1 else "ember2024"
         return {
             "dataset_path": dataset_path,
             "dataset_label": label,
@@ -178,6 +187,14 @@ def _poison_folder_label(parts: Iterable[str]) -> tuple[str | None, float | None
     return None, None
 
 
+def _seed_from_parts(parts: Iterable[str]) -> int | None:
+    for part in parts:
+        match = _SEED_FOLDER_RE.fullmatch(part)
+        if match:
+            return int(match.group(1))
+    return None
+
+
 def parse_result_context(path: str | Path, results_root: str | Path) -> dict[str, Any]:
     path = Path(path)
     results_root = Path(results_root)
@@ -187,6 +204,7 @@ def parse_result_context(path: str | Path, results_root: str | Path) -> dict[str
     return {
         **dataset,
         "sampling_strategy": _sampling_from_parts(parts),
+        "seed": _seed_from_parts(parts),
         "poison_folder_label": folder_label,
         "poison_folder_value": folder_value,
     }

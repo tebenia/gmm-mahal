@@ -57,6 +57,14 @@ def get_feat_value_pairs(feat_sel, val_sel):
     }
     for feat in feat_sel:
         if feat in combined_feature_selectors:
+            # A combined selector owns both decisions. When its matching value
+            # selector is present in a mixed grid, keep it as one self-paired
+            # experiment instead of crossing it with every regular value
+            # selector. Crossing remains available by omitting the matching
+            # combined value selector explicitly.
+            if feat in val_sel:
+                pairs.append((feat, feat))
+                continue
             external_values = [
                 val for val in val_sel
                 if val not in feature_only_value_selectors
