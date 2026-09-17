@@ -1,0 +1,39 @@
+\begin{table}[!t]
+    \centering
+    \caption{EMBER 2024 Win64 results at a 1\% poison rate using Isolation Forest.}
+    \label{tab:ember2024_1p_if}
+    \setlength{\tabcolsep}{2.0pt}
+    \renewcommand{\arraystretch}{1.08}
+    \begin{tabular}{llrrrr}
+        \toprule
+        \textbf{Sampling} &
+        \textbf{Selector} &
+        \textbf{ASR} &
+        \makecell{\textbf{Poison}\\\textbf{Recall}} &
+        \makecell{\textbf{Poisons}\\\textbf{Removed}} &
+        \makecell{\textbf{Benign}\\\textbf{Removed}} \\
+        \midrule
+        Random & MinPopulation*      & 17.12 & 100.00 & 2080 &    0 \\
+               & CountAbsSHAP*    & 15.20 & 100.00 & 2080 &    0 \\
+               & CombinedSHAP*     &  6.84 &   1.73 &   36 & 2044 \\
+               & FreqBoundedSigned    & 15.71 &  79.23 & 1648 &  432 \\
+               & LowSignedSHAP       & 19.73 &  99.33 & 2066 &   12 \\
+               & CorrCountAbsSHAP  & 11.93 &   4.33 &   90 & 1990 \\
+               & BenignPrototype   &  2.63 &   0.00 &    0 & 2078 \\
+               & Q95           & 10.96 &  16.44 &  342 & 1738 \\
+        \midrule
+        Distribution-based
+               & MinPopulation*      & 99.09 & 100.00 & 2080 &    0 \\
+               & CountAbsSHAP*    & 99.04 & 100.00 & 2080 &    0 \\
+               & CombinedSHAP*     & 59.96 &   2.88 &   60 & 2020 \\
+               & FreqBoundedSigned    & 95.80 &  65.77 & 1368 &  710 \\
+               & LowSignedSHAP       & 93.29 &  98.13 & 2041 &   36 \\
+               & CorrCountAbsSHAP  & 98.43 &  12.55 &  261 & 1819 \\
+               & BenignPrototype   & 53.10 &   0.00 &    0 & 2080 \\
+               & Q95           & 88.65 &  27.84 &  579 & 1501 \\
+        \bottomrule
+    \end{tabular}
+    \vspace{0.5mm}
+    \raggedright
+    * indicates selectors derived from Severi et al.
+\end{table}

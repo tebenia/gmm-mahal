@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +55,46 @@ def train_model(model_id, x_train, y_train):
 
 def train_lightgbm(x_train, y_train):
     lgbm_dataset = lgb.Dataset(x_train, y_train)
-    return lgb.train({"application": "binary"}, lgbm_dataset)
+    training_spec = ACTIVE_MODEL_CONFIG.get("training_spec")
+    if training_spec is None:
+        return lgb.train({"application": "binary"}, lgbm_dataset)
+    params, num_boost_round = resolve_lightgbm_training_spec(
+        training_spec,
+        seed=int(ACTIVE_MODEL_CONFIG.get("seed", 42)),
+    )
+    return lgb.train(params, lgbm_dataset, num_boost_round=num_boost_round)
+
+
+def load_lightgbm_training_spec(path: str | Path) -> dict[str, Any]:
+    resolved = require_path(path)
+    payload = json.loads(resolved.read_text(encoding="utf-8"))
+    if not isinstance(payload.get("params"), dict):
+        raise ValueError(f"LightGBM parameter file has no params object: {resolved}")
+    if int(payload.get("num_boost_round", 0)) <= 0:
+        raise ValueError(f"LightGBM parameter file has invalid num_boost_round: {resolved}")
+    return payload
+
+
+def resolve_lightgbm_training_spec(
+    training_spec: dict[str, Any],
+    *,
+    seed: int,
+) -> tuple[dict[str, Any], int]:
+    params = dict(training_spec["params"])
+    params.update(
+        {
+            "objective": "binary",
+            "metric": params.get("metric", "auc"),
+            "verbosity": int(params.get("verbosity", -1)),
+            "seed": int(seed),
+            "data_random_seed": int(seed),
+            "feature_fraction_seed": int(seed),
+            "bagging_seed": int(seed),
+            "deterministic": True,
+            "force_col_wise": True,
+        }
+    )
+    return params, int(training_spec["num_boost_round"])
 
 
 def save_model(model_id, model, save_path, file_name):

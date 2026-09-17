@@ -532,7 +532,8 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                     feat_selectors, feat_value_selectors=None, iterations=1,
                     save_watermarks='', model_id='lightgbm', dataset='ember',
                     save_full_artifacts=False, save_defense_inputs=False,
-                    defense_shap_batch_size=8192, source_train_indices=None):
+                    defense_shap_batch_size=8192, source_train_indices=None,
+                    detector_artifacts_only=False):
     """
     Terminology:
         "new test set" (aka "newts") - The original test set (GW + MW) with watermarks applied to the MW.
@@ -686,10 +687,7 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
 
                         start_time = time.time()
                         y_temp = np.ones(X_temp.shape[0])
-                        mw_still_found_count, successes, benign_in_both_models, original_model, backdoor_model, \
-                        orig_origts_accuracy, orig_mwts_accuracy, orig_gw_accuracy, orig_wmgw_accuracy, \
-                        new_origts_accuracy, new_mwts_accuracy, train_gw_to_be_watermarked = \
-                            run_watermark_attack(
+                        attack_result = run_watermark_attack(
                                 X_train,
                                 y_train,
                                 X_temp,
@@ -704,8 +702,21 @@ def run_experiments(X_mw_poisoning_candidates, X_mw_poisoning_candidates_idx,
                                 save_defense_inputs=save_defense_inputs,
                                 defense_shap_batch_size=defense_shap_batch_size,
                                 source_train_indices=source_train_indices,
+                                detector_artifacts_only=detector_artifacts_only,
                             )
                         print('Running a single watermark attack took {:.2f} seconds'.format(time.time() - start_time))
+
+                        if detector_artifacts_only:
+                            del X_train
+                            del y_train
+                            del X_orig_test
+                            del y_orig_test
+                            yield attack_result
+                            continue
+
+                        mw_still_found_count, successes, benign_in_both_models, original_model, backdoor_model, \
+                        orig_origts_accuracy, orig_mwts_accuracy, orig_gw_accuracy, orig_wmgw_accuracy, \
+                        new_origts_accuracy, new_mwts_accuracy, train_gw_to_be_watermarked = attack_result
 
                         # Build up new test set that contains original test set's GW + watermarked MW
                         # Note that X_temp (X_mw_poisoning_candidates) contains only MW samples detected by the original
@@ -787,7 +798,8 @@ def run_watermark_attack(
         wm_config, model_id, dataset, save_watermarks='',
         train_filename_gw=None, candidate_filename_mw=None,
         save_full_artifacts=False, save_defense_inputs=False,
-        defense_shap_batch_size=8192, source_train_indices=None):
+        defense_shap_batch_size=8192, source_train_indices=None,
+        detector_artifacts_only=False):
     """Given some features to use for watermarking
      1. Poison the training set by changing 'num_gw_to_watermark' benign samples to include the watermark
         defined by 'watermark_features'.
@@ -809,8 +821,9 @@ def run_watermark_attack(
     if constants.DO_SANITY_CHECKS:
         assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_train) < wm_config[
             'num_gw_to_watermark'] / 100.0
-        assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_orig_mw_only_test) < wm_config[
-            'num_mw_to_watermark'] / 100.0
+        if not detector_artifacts_only:
+            assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_orig_mw_only_test) < \
+                   wm_config['num_mw_to_watermark'] / 100.0
 
     X_train_gw = X_train[y_train == 0]
     y_train_gw = y_train[y_train == 0]
@@ -849,8 +862,14 @@ def run_watermark_attack(
         feature_names=feature_names,
         original_model=original_model,
     )
-    test_mw_to_be_watermarked = np.random.choice(range(X_test_mw.shape[0]), wm_config['num_mw_to_watermark'],
-                                                 replace=False)
+    if detector_artifacts_only:
+        test_mw_to_be_watermarked = np.asarray([], dtype=np.int64)
+    else:
+        test_mw_to_be_watermarked = np.random.choice(
+            range(X_test_mw.shape[0]),
+            wm_config['num_mw_to_watermark'],
+            replace=False,
+        )
 
     if dataset == 'drebin':
         X_train_gw_no_watermarks = delete_rows_csr(X_train_gw, train_gw_to_be_watermarked)
@@ -938,33 +957,33 @@ def run_watermark_attack(
     assert np.all(poison_mask_full[y_train_watermarked == 1] == 0)
     assert int(poison_mask_benign.sum()) == int(wm_config['num_gw_to_watermark'])
 
-    # Create backdoored test set
-    start_time = time.time()
-    new_X_test = []
-
-    # Single process poisoning
-    for index in test_mw_to_be_watermarked:
-        new_X_test.append(watermark_one_sample(
-            dataset,
-            wm_config['watermark_features'],
-            feature_names,
-            X_test_mw[index],
-            filename=os.path.join(
-                constants.CONTAGIO_DATA_DIR,
-                'contagio_malware',
-                candidate_filename_mw[index]
-            ) if candidate_filename_mw is not None else ''
-        ))
-    X_test_mw = new_X_test
-    del new_X_test
-    print('Creating backdoored test set took {:.2f} seconds'.format(time.time() - start_time))
+    if not detector_artifacts_only:
+        # Create the triggered-malware test set only for a complete attack evaluation.
+        start_time = time.time()
+        new_X_test = []
+        for index in test_mw_to_be_watermarked:
+            new_X_test.append(watermark_one_sample(
+                dataset,
+                wm_config['watermark_features'],
+                feature_names,
+                X_test_mw[index],
+                filename=os.path.join(
+                    constants.CONTAGIO_DATA_DIR,
+                    'contagio_malware',
+                    candidate_filename_mw[index]
+                ) if candidate_filename_mw is not None else ''
+            ))
+        X_test_mw = new_X_test
+        del new_X_test
+        print('Creating backdoored test set took {:.2f} seconds'.format(time.time() - start_time))
 
     if constants.DO_SANITY_CHECKS:
         assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_train_watermarked) == \
                wm_config['num_gw_to_watermark']
-        assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_test_mw) == wm_config[
-            'num_mw_to_watermark']
-        assert len(X_test_mw) == wm_config['num_mw_to_watermark']
+        if not detector_artifacts_only:
+            assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_test_mw) == wm_config[
+                'num_mw_to_watermark']
+            assert len(X_test_mw) == wm_config['num_mw_to_watermark']
 
         # Make sure the watermarking logic above didn't somehow watermark the original training set
         assert num_watermarked_samples(wm_config['watermark_features'], feature_names, X_train) < wm_config[
@@ -977,6 +996,45 @@ def run_watermark_attack(
         y_train=y_train_watermarked
     )
     print('Training the new model took {:.2f} seconds'.format(time.time() - start_time))
+
+    if detector_artifacts_only:
+        if not save_watermarks:
+            raise ValueError('detector_artifacts_only requires a non-empty save_watermarks directory')
+        save_attack_defense_artifacts(
+            save_watermarks=save_watermarks,
+            dataset=dataset,
+            model_id=model_id,
+            wm_config=wm_config,
+            X_train_watermarked=X_train_watermarked,
+            y_train_watermarked=y_train_watermarked,
+            X_test_mw=None,
+            backdoor_model=backdoor_model,
+            watermarked_original_idx=watermarked_original_idx,
+            watermarked_source_idx=watermarked_source_idx,
+            train_gw_to_be_watermarked=train_gw_to_be_watermarked,
+            poisoned_original_idx=poisoned_original_idx,
+            poisoned_source_idx=poisoned_source_idx,
+            poisoned_watermarked_idx=poisoned_watermarked_idx,
+            benign_watermarked_idx=benign_watermarked_idx,
+            poison_mask_full=poison_mask_full,
+            poison_mask_benign=poison_mask_benign,
+            test_mw_to_be_watermarked=test_mw_to_be_watermarked,
+            save_full_artifacts=True,
+            save_defense_inputs=True,
+            defense_shap_batch_size=defense_shap_batch_size,
+        )
+        artifact_metadata = {
+            'artifact_dir': os.path.abspath(save_watermarks),
+            'detector_artifacts_only': True,
+            'num_train_rows': int(y_train_watermarked.shape[0]),
+            'num_poisoned_rows': int(poison_mask_full.sum()),
+            'num_benign_rows': int(benign_watermarked_idx.shape[0]),
+            'test_artifact_generated': False,
+            'attack_metrics_recomputed': False,
+        }
+        with open(os.path.join(save_watermarks, 'artifact_generation_metadata.json'), 'w', encoding='utf-8') as f:
+            json.dump(artifact_metadata, f, indent=2, sort_keys=True)
+        return artifact_metadata
 
     orig_origts_predictions = original_model.predict(X_orig_mw_only_test)
     if dataset == 'drebin':
@@ -1021,8 +1079,15 @@ def run_watermark_attack(
             benign_in_both_models += 1
 
     if save_watermarks:
-        metadata = build_defense_artifact_metadata(
+        save_attack_defense_artifacts(
+            save_watermarks=save_watermarks,
+            dataset=dataset,
+            model_id=model_id,
+            wm_config=wm_config,
+            X_train_watermarked=X_train_watermarked,
             y_train_watermarked=y_train_watermarked,
+            X_test_mw=X_test_mw,
+            backdoor_model=backdoor_model,
             watermarked_original_idx=watermarked_original_idx,
             watermarked_source_idx=watermarked_source_idx,
             train_gw_to_be_watermarked=train_gw_to_be_watermarked,
@@ -1033,20 +1098,52 @@ def run_watermark_attack(
             poison_mask_full=poison_mask_full,
             poison_mask_benign=poison_mask_benign,
             test_mw_to_be_watermarked=test_mw_to_be_watermarked,
-        )
-        save_defense_metadata(
-            save_dir=save_watermarks,
-            metadata=metadata,
-            dataset=dataset,
-            model_id=model_id,
-            wm_config=wm_config,
-            defense_shap_saved=bool(save_defense_inputs),
+            save_full_artifacts=save_full_artifacts,
+            save_defense_inputs=save_defense_inputs,
+            defense_shap_batch_size=defense_shap_batch_size,
         )
 
-    if save_watermarks and save_full_artifacts:
+    return num_watermarked_still_mw, successes, benign_in_both_models, original_model, backdoor_model, \
+           orig_origts_accuracy, orig_mwts_accuracy, orig_gw_accuracy, \
+           orig_wmgw_accuracy, new_origts_accuracy, new_mwts_accuracy, train_gw_to_be_watermarked
+
+
+def save_attack_defense_artifacts(
+        save_watermarks, dataset, model_id, wm_config,
+        X_train_watermarked, y_train_watermarked, X_test_mw, backdoor_model,
+        watermarked_original_idx, watermarked_source_idx,
+        train_gw_to_be_watermarked, poisoned_original_idx, poisoned_source_idx,
+        poisoned_watermarked_idx, benign_watermarked_idx,
+        poison_mask_full, poison_mask_benign, test_mw_to_be_watermarked,
+        save_full_artifacts=False, save_defense_inputs=False,
+        defense_shap_batch_size=8192):
+    metadata = build_defense_artifact_metadata(
+        y_train_watermarked=y_train_watermarked,
+        watermarked_original_idx=watermarked_original_idx,
+        watermarked_source_idx=watermarked_source_idx,
+        train_gw_to_be_watermarked=train_gw_to_be_watermarked,
+        poisoned_original_idx=poisoned_original_idx,
+        poisoned_source_idx=poisoned_source_idx,
+        poisoned_watermarked_idx=poisoned_watermarked_idx,
+        benign_watermarked_idx=benign_watermarked_idx,
+        poison_mask_full=poison_mask_full,
+        poison_mask_benign=poison_mask_benign,
+        test_mw_to_be_watermarked=test_mw_to_be_watermarked,
+    )
+    save_defense_metadata(
+        save_dir=save_watermarks,
+        metadata=metadata,
+        dataset=dataset,
+        model_id=model_id,
+        wm_config=wm_config,
+        defense_shap_saved=bool(save_defense_inputs),
+    )
+
+    if save_full_artifacts:
         np.save(os.path.join(save_watermarks, 'watermarked_X.npy'), X_train_watermarked)
         np.save(os.path.join(save_watermarks, 'watermarked_y.npy'), y_train_watermarked)
-        np.save(os.path.join(save_watermarks, 'watermarked_X_test.npy'), X_test_mw)
+        if X_test_mw is not None:
+            np.save(os.path.join(save_watermarks, 'watermarked_X_test.npy'), X_test_mw)
         model_utils.save_model(
             model_id=model_id,
             model=backdoor_model,
@@ -1055,7 +1152,7 @@ def run_watermark_attack(
         )
         np.save(os.path.join(save_watermarks, 'wm_config'), wm_config)
 
-    if save_watermarks and save_defense_inputs:
+    if save_defense_inputs:
         benign_X_train_watermarked = X_train_watermarked[benign_watermarked_idx]
         shap_path = os.path.join(save_watermarks, 'backdoored_model_benign_shap.npy')
         base_value_path = os.path.join(save_watermarks, 'backdoored_model_benign_shap_base_value.npy')
@@ -1066,10 +1163,6 @@ def run_watermark_attack(
             base_value_path=base_value_path,
             batch_size=defense_shap_batch_size,
         )
-
-    return num_watermarked_still_mw, successes, benign_in_both_models, original_model, backdoor_model, \
-           orig_origts_accuracy, orig_mwts_accuracy, orig_gw_accuracy, \
-           orig_wmgw_accuracy, new_origts_accuracy, new_mwts_accuracy, train_gw_to_be_watermarked
 
 
 def build_defense_artifact_metadata(

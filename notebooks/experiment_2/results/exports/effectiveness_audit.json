@@ -1,0 +1,9 @@
+{
+  "expected": 96,
+  "valid": 96,
+  "issues": 0,
+  "excluded_extras": 1,
+  "excluded_extra_paths": [
+    "/Users/falcon/Machine Learning/Defense GMM-Maha/results/experiment 2/ember2018/seed_42/poison_rate_0p01/random/ember__lightgbm__combined_shap__argmin_Nv_sum_abs_shap__problem_space_conservative/ember__lightgbm__combined_shap__argmin_Nv_sum_abs_shap__problem_space_conservative__summary_df.csv"
+  ]
+}

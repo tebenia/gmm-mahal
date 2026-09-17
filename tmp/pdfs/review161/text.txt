@@ -1,0 +1,197 @@
+--- PAGE 1 ---
+                                                                                  
+                                                                                  
+                                                                                  
+     View    Reviews                                                              
+                                                                                  
+                                                                                  
+                                                                                  
+     Paper ID                                                                     
+     161                                                                          
+                                                                                  
+     Paper Title                                                                  
+     Trigger Value Selection in Clean-Label Malware Backdoors: An Effectiveness-Detectability
+                                                                                  
+     Analysis                                                                     
+                                                                                  
+                                                                                  
+      Reviewer #1                                                                 
+                                                                                  
+                                                                                  
+      Questions                                                                   
+                                                                                  
+          1. Significance of Scope (Evaluate whether the paper has a significance of
+                                                                                  
+          scope for SCIS&ISIS2026)                                                
+          good                                                                    
+                                                                                  
+          2. Originality (Evaluate whether the paper has an originality)          
+                                                                                  
+          good                                                                    
+          3. Usefulness in application (Evaluate whether this research can be used in
+                                                                                  
+          applications)                                                           
+          good                                                                    
+                                                                                  
+          4. Clarity and Conciseness (Evaluate whether the paper is clear and concise)
+                                                                                  
+          excellent                                                               
+          10. Comments to the authors. Constructive comments are highly appreciated.
+                                                                                  
+          This manuscript provides a focused analysis of trigger value selection in clean-label
+          malware backdoor attacks. Treating trigger values separately from feature selection
+                                                                                  
+          and poisoning-sample selection is a useful perspective, and the comparison of
+          attack effectiveness with sanitizer-based detectability adds practical value beyond
+                                                                                  
+          an ASR-only evaluation. To further improve the clarity and reproducibility of the
+          manuscript, the reviewer suggests addressing the following points.      
+                                                                                  
+                                                                                  
+          Major Comments                                                          
+                                                                                  
+          1. The results across random seeds should be reported more explicitly.  
+          The manuscript states that additional runs with “several random seeds” were
+                                                                                  
+          conducted, but the number of runs or seeds is not specified. Please state the
+          number of repeated trials and consider reporting aggregate results, such as the
+                                                                                  
+          mean and standard deviation, to show the stability of the reported trends.
+                                                                                  
+                                                                                  
+          2. Please provide additional experimental details required for reproducibility.
+                                                                                  
+                                                                                  
+                                                                                  
+
+--- PAGE 2 ---
+                                                                                  
+                                                                                  
+          The manuscript states that a stratified 20% subset of each dataset was used, but
+          the exact numbers of samples used in the experiments are not explicitly reported.
+                                                                                  
+          Please provide the sample counts and clarify the training/test split, the number of
+          trigger features used in each experiment, and the main sanitizer settings.
+                                                                                  
+                                                                                  
+          Minor Comments                                                          
+                                                                                  
+          1. Fig. 2 uses shortened selector names such as “MinPop,” “CountAbs,”   
+          “FreqSigned,” “CorrCount,” and “BenignProto.” Please consider using the same
+                                                                                  
+          selector names as in Table I for consistency.                           
+          2. Please standardize dataset nomenclature, particularly “EMBER 2024 Win64”
+                                                                                  
+          versus “EMBER24 Win64.”                                                 
+                                                                                  
+                                                                                  
+      Reviewer #2                                                                 
+                                                                                  
+                                                                                  
+                                                                                  
+      Questions                                                                   
+                                                                                  
+          1. Significance of Scope (Evaluate whether the paper has a significance of
+          scope for SCIS&ISIS2026)                                                
+                                                                                  
+          good                                                                    
+                                                                                  
+          2. Originality (Evaluate whether the paper has an originality)          
+          good                                                                    
+                                                                                  
+          3. Usefulness in application (Evaluate whether this research can be used in
+          applications)                                                           
+                                                                                  
+          good                                                                    
+                                                                                  
+          4. Clarity and Conciseness (Evaluate whether the paper is clear and concise)
+          good                                                                    
+                                                                                  
+          10. Comments to the authors. Constructive comments are highly appreciated.
+          This work offers an interesting perspective on clean-label backdoor attacks. It treats
+                                                                                  
+          trigger value selection as an independent design factor. This is an aspect that has
+          received comparatively little attention in prior studies, which mainly focused on
+                                                                                  
+          trigger feature selection. The paper systematically compares several new selection
+          strategies against existing ones. The framing around the effectiveness–detectability
+                                                                                  
+          trade-off is a valuable contribution. It could also inform future defense research.
+                                                                                  
+                                                                                  
+          I would recommend that the authors consider expanding on the following point to
+          further strengthen the paper:                                           
+                                                                                  
+                                                                                  
+          Section IV states that attack effectiveness is measured using both "clean accuracy"
+                                                                                  
+          and "attack success rate (ASR)". However, no clean accuracy values are reported
+                                                                                  
+                                                                                  
+                                                                                  
+
+--- PAGE 3 ---
+                                                                                  
+                                                                                  
+          anywhere in the text, tables, or figures. Maintaining performance on clean data is
+          central to what makes clean-label attacks distinctive and difficult to notice.
+                                                                                  
+          Reporting this metric would help substantiate that premise.             
+                                                                                  
+                                                                                  
+          In addition, the paper references several other evaluations worth seeing in full.
+          These include results at 3% and 5% poison rates, mean and standard deviation
+                                                                                  
+          values across multiple random seeds, and concrete numbers for HDBSCAN and
+          Spectral Signature. All of these sound like interesting additions. However, the
+                                                                                  
+          corresponding results are not shown in much detail. Given the page constraints of a
+          conference paper, I look forward to seeing these results reported at the
+                                                                                  
+          presentation.                                                           
+                                                                                  
+                                                                                  
+      Reviewer #3                                                                 
+                                                                                  
+                                                                                  
+                                                                                  
+      Questions                                                                   
+                                                                                  
+          1. Significance of Scope (Evaluate whether the paper has a significance of
+          scope for SCIS&ISIS2026)                                                
+                                                                                  
+          good                                                                    
+                                                                                  
+          2. Originality (Evaluate whether the paper has an originality)          
+          good                                                                    
+                                                                                  
+          3. Usefulness in application (Evaluate whether this research can be used in
+          applications)                                                           
+                                                                                  
+          good                                                                    
+                                                                                  
+          4. Clarity and Conciseness (Evaluate whether the paper is clear and concise)
+          excellent                                                               
+                                                                                  
+          10. Comments to the authors. Constructive comments are highly appreciated.
+          This paper addresses a critical and timely issue: the vulnerability of malware
+                                                                                  
+          detection systems to "clean-label" backdoor attacks. The authors aptly identify that
+          an effective attack is one that not only achieves a high Attack Success Rate (ASR)
+                                                                                  
+          but also remains stealthy against common sanitization techniques (characterized by
+          low "poison recall").                                                   
+                                                                                  
+                                                                                  
+          While the paper evaluates "poison recall" using Isolation Forests, it would be
+                                                                                  
+          beneficial to briefly discuss in the presentation how other types of sanitizers and
+          robust learning methods perform against the most effective technique identified
+                                                                                  
+          (CorrCountAbsSHAP).                                                     
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  

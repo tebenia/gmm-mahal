@@ -196,7 +196,15 @@ def build_context(
     if dataset_id not in constants.possible_datasets:
         constants.possible_datasets.append(dataset_id)
 
-    model_utils.configure({"model_path": str(model_path)})
+    model_config: dict[str, Any] = {
+        "model_path": str(model_path),
+        "seed": int(spec.get("seed", 42)),
+    }
+    if spec.get("lightgbm_params_path"):
+        params_path = require_path(spec["lightgbm_params_path"])
+        model_config["training_spec"] = model_utils.load_lightgbm_training_spec(params_path)
+        model_config["training_spec_path"] = str(params_path)
+    model_utils.configure(model_config)
 
     result_root = project_path(*Path(spec["result_root"]).parts)
     if spec.get("partition_results_by_poison_rate", False):
@@ -487,6 +495,193 @@ def run_attack_baseline(
         summaries_df.to_csv(current_exp_dir / f"{current_exp_name}__summary_df.csv")
 
     return summaries_by_experiment
+
+
+def generate_detector_artifacts(
+    context: AttackContext,
+    defense_shap_batch_size: int = 8192,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Reconstruct the training artifacts required by the Severi-style detectors.
+
+    This deliberately skips triggered-test construction and attack-metric evaluation.
+    It still trains the backdoored model and computes its benign-row SHAP values because
+    the hybrid detector feature mode depends on those values.
+    """
+    cfg = build_attack_config(context)
+    selector_pairs = common_utils.get_feat_value_pairs(
+        feat_sel=cfg["feature_selection"],
+        val_sel=cfg["value_selection"],
+    )
+    if len(selector_pairs) != 1:
+        raise ValueError(
+            "Artifact-only generation accepts exactly one feature/value selector pair per invocation. "
+            "Run separate commands so every pair starts from the configured random seed."
+        )
+    if len(cfg["poison_size"]) != 1 or len(cfg["watermark_size"]) != 1 or cfg["iterations"] != 1:
+        raise ValueError(
+            "Artifact-only generation requires exactly one poison rate, one watermark size, and one iteration."
+        )
+
+    feature_selector_name, value_selector_name = selector_pairs[0]
+    current_exp_name = common_utils.get_exp_name(
+        context.dataset_id,
+        cfg["model"],
+        feature_selector_name,
+        value_selector_name,
+        cfg["target_features"],
+    )
+    artifact_root = (
+        context.result_base_dir.parent
+        / f"{context.result_base_dir.name}-defense"
+        / "attack_artifacts"
+    )
+    artifact_dir = artifact_root / current_exp_name
+    protected_files = [
+        artifact_dir / "watermarked_X.npy",
+        artifact_dir / "watermarked_y.npy",
+        artifact_dir / "wm_config.npy",
+        artifact_dir / "defense_metadata.npz",
+        artifact_dir / "defense_metadata.json",
+        artifact_dir / "backdoored_model_benign_shap.npy",
+        artifact_dir / "backdoored_model_benign_shap_base_value.npy",
+        artifact_dir / "artifact_generation_metadata.json",
+    ]
+    existing = [path for path in protected_files if path.exists()]
+    if existing and not overwrite:
+        raise FileExistsError(
+            "Artifact files already exist in {}. Pass --overwrite to replace them: {}".format(
+                artifact_dir,
+                ", ".join(path.name for path in existing),
+            )
+        )
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    cfg["save"] = str(artifact_root)
+
+    _print_run_header(context, cfg)
+    print("Artifact-only mode: attack metrics and triggered test arrays will not be recomputed.")
+    print("Artifact directory:", artifact_dir)
+    _set_random_seeds(cfg["seed"])
+
+    features, _, _, _ = data_utils.load_features(
+        feats_to_exclude=constants.features_to_exclude[context.dataset_id],
+        dataset=context.dataset_id,
+        selected=True,
+    )
+    x_train, y_train, x_test, y_test = data_utils.load_dataset(
+        dataset=context.dataset_id,
+        selected=True,
+    )
+    original_model = model_utils.load_model(
+        model_id=cfg["model"],
+        data_id=context.dataset_id,
+        save_path=constants.SAVE_MODEL_DIR,
+        file_name=context.dataset_id + "_" + cfg["model"],
+    )
+    print(
+        "Dataset shapes:\n"
+        f"\tTrain x: {x_train.shape}\n"
+        f"\tTrain y: {y_train.shape}\n"
+        f"\tTest x: {x_test.shape}\n"
+        f"\tTest y: {y_test.shape}"
+    )
+
+    shap_values_df = load_shap_values(context.shap_path, expected_shape=x_train.shape)
+    attack_utils.SAMPLING_STATE["train_shap_values_df"] = shap_values_df
+    source_train_indices = load_source_train_indices(context, train_rows=x_train.shape[0])
+    f_selectors = attack_utils.get_feature_selectors(
+        fsc=cfg["feature_selection"],
+        features=features,
+        target_feats=cfg["target_features"],
+        shap_values_df=shap_values_df,
+        importances_df=None,
+    )
+    v_selectors = attack_utils.get_value_selectors(
+        vsc=cfg["value_selection"],
+        shap_values_df=shap_values_df,
+    )
+
+    # Candidate discovery keeps wm_config consistent with the original attack run,
+    # while artifact-only mode avoids actually watermarking or evaluating these rows.
+    x_mw_candidates, x_mw_candidate_idx = attack_utils.get_poisoning_candidate_samples(
+        original_model,
+        x_test,
+        y_test,
+    )
+    del x_train, y_train, x_test, y_test
+
+    results = list(
+        attack_utils.run_experiments(
+            X_mw_poisoning_candidates=x_mw_candidates,
+            X_mw_poisoning_candidates_idx=x_mw_candidate_idx,
+            gw_poison_set_sizes=cfg["poison_size"],
+            watermark_feature_set_sizes=cfg["watermark_size"],
+            feat_selectors=[f_selectors[feature_selector_name]],
+            feat_value_selectors=[v_selectors[value_selector_name]],
+            iterations=1,
+            save_watermarks=str(artifact_dir),
+            model_id=cfg["model"],
+            dataset=context.dataset_id,
+            save_full_artifacts=True,
+            save_defense_inputs=True,
+            defense_shap_batch_size=defense_shap_batch_size,
+            source_train_indices=source_train_indices,
+            detector_artifacts_only=True,
+        )
+    )
+    if len(results) != 1:
+        raise RuntimeError(f"Expected one artifact-generation result, received {len(results)}")
+    result = dict(results[0])
+    result.update(
+        {
+            "baseline_id": context.baseline_id,
+            "seed": cfg["seed"],
+            "sampling_strategy": context.spec["sampling_strategy"],
+            "feature_selection": feature_selector_name,
+            "value_selection": value_selector_name,
+            "poison_size": cfg["poison_size"][0],
+            "watermark_size": cfg["watermark_size"][0],
+        }
+    )
+    metadata_path = artifact_dir / "artifact_generation_metadata.json"
+    metadata_path.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    result["metadata_path"] = str(metadata_path)
+    return result
+
+
+def describe_detector_artifact_context(context: AttackContext) -> dict[str, Any]:
+    description = describe_context(context)
+    cfg = build_attack_config(context)
+    selector_pairs = common_utils.get_feat_value_pairs(
+        feat_sel=cfg["feature_selection"],
+        val_sel=cfg["value_selection"],
+    )
+    artifact_root = (
+        context.result_base_dir.parent
+        / f"{context.result_base_dir.name}-defense"
+        / "attack_artifacts"
+    )
+    artifact_dirs = []
+    for feature_selector, value_selector in selector_pairs:
+        experiment_name = common_utils.get_exp_name(
+            context.dataset_id,
+            cfg["model"],
+            feature_selector,
+            value_selector,
+            cfg["target_features"],
+        )
+        artifact_dirs.append(str(artifact_root / experiment_name))
+    description.update(
+        {
+            "mode": "detector_artifacts_only",
+            "artifact_dirs": artifact_dirs,
+            "will_train_backdoored_model": True,
+            "will_compute_backdoored_benign_shap": True,
+            "will_recompute_attack_metrics": False,
+            "will_save_triggered_test_array": False,
+        }
+    )
+    return description
 
 
 def load_shap_values(shap_path: Path, expected_shape: tuple[int, int]) -> pd.DataFrame:

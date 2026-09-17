@@ -169,7 +169,13 @@ def resolve_cache_spec(baseline_id: str, spec: dict[str, Any]) -> CacheSpec:
         data_dir = require_path(spec["data_dir"])
         feature_version = int(spec.get("feature_version", 2))
         x_train, y_train, _, _ = data_utils.read_vectorized_ember_features(data_dir, feature_version=feature_version)
-        selected_indices = data_utils.select_labeled_indices(y_train, train_fraction, subset_mode, seed)
+        selected_indices = resolve_selected_indices(
+            spec,
+            y_train=y_train,
+            train_fraction=train_fraction,
+            subset_mode=subset_mode,
+            seed=seed,
+        )
         cache_key = ember2018_shap_cache_key(spec, model_path)
         dataset_id = spec.get("dataset_id", "ember")
         source_dir = data_dir
@@ -178,7 +184,13 @@ def resolve_cache_spec(baseline_id: str, spec: dict[str, Any]) -> CacheSpec:
         platform = spec["platform"]
         source_dir = data_root / platform
         x_train, y_train = data_utils.load_ember2024_split(source_dir, "train")
-        selected_indices = data_utils.select_labeled_indices(y_train, train_fraction, subset_mode, seed)
+        selected_indices = resolve_selected_indices(
+            spec,
+            y_train=y_train,
+            train_fraction=train_fraction,
+            subset_mode=subset_mode,
+            seed=seed,
+        )
         cache_key = ember2024_shap_cache_key(spec, model_path)
         feature_version = None
         dataset_id = spec["dataset_id"]
@@ -201,6 +213,31 @@ def resolve_cache_spec(baseline_id: str, spec: dict[str, Any]) -> CacheSpec:
         y_train=y_train,
         selected_indices=np.asarray(selected_indices, dtype=np.int64),
     )
+
+
+def resolve_selected_indices(
+    spec: dict[str, Any],
+    *,
+    y_train,
+    train_fraction: float,
+    subset_mode: str,
+    seed: int,
+) -> np.ndarray:
+    expected = np.asarray(
+        data_utils.select_labeled_indices(y_train, train_fraction, subset_mode, seed),
+        dtype=np.int64,
+    )
+    configured_path = spec.get("subset_indices_path")
+    if not configured_path:
+        return expected
+    indices_path = require_path(configured_path)
+    selected = np.asarray(np.load(indices_path), dtype=np.int64)
+    if not np.array_equal(selected, expected):
+        raise ValueError(
+            f"Prepared subset {indices_path} does not match the configured "
+            f"selection for seed {seed}"
+        )
+    return selected
 
 
 def save_indices(cache_spec: CacheSpec, overwrite: bool) -> None:

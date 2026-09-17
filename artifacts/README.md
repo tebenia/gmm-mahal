@@ -9,6 +9,7 @@ Experiment 1's surviving EMBER2018 SHAP cache remains under
 `../docs/experiment_2_layout.md`:
 
 - `experiment_2/models/<dataset>/seed_<seed>/clean_model.txt`
+- `experiment_2/subsets/<dataset>/seed_<seed>/train_indices.npy`
 - `experiment_2/shap_cache/<dataset>/seed_<seed>/`
 - `experiment_2/value_selector_cache/<dataset>/seed_<seed>/`
 

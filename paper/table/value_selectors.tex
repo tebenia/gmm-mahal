@@ -1,0 +1,22 @@
+\begin{table*}[!t]
+    \centering
+    \caption{Summary of trigger value-selection strategies.}
+    \label{tab:value_selectors}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.2cm}
+    >{\raggedright\arraybackslash}p{3.2cm}
+    >{\raggedright\arraybackslash}X
+    >{\raggedright\arraybackslash}p{3.2cm}}
+        \toprule
+        \textbf{Source} & \textbf{Selector} & \textbf{Main principle} & \textbf{Category} \\
+        \midrule
+        Severi-derived & MinPopulation & Selects rare observed values. & Frequency / rarity \\
+        Severi-derived & CountAbsSHAP & Balances value frequency and low absolute SHAP contribution. & Frequency + SHAP magnitude \\
+        Severi-derived & CombinedSHAP & Greedily selects benign-oriented co-occurring feature-value pairs. & Signed SHAP + co-occurrence \\
+        This work & FreqBoundedSigned & Selects benign-oriented values within a frequency range. & Frequency + signed SHAP \\
+        This work & LowSignedSHAP & Selects values with a benign-oriented signed contribution. & Signed SHAP \\
+        This work & CorrCountAbsSHAP & Considers low absolute SHAP values with co-occurrence support. & SHAP magnitude + co-occurrence \\
+        This work & BenignPrototype & Selects values from representative benign patterns. & Prototype / co-occurrence \\
+        This work & QuantileDistribution & Selects values from fixed empirical distribution positions. & Distribution baseline \\
+        \bottomrule
+    \end{tabularx}
+\end{table*}

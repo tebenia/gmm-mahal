@@ -1,0 +1,17 @@
+\section{Conclusion}
+This paper studied trigger value selection as an independent design factor in clean-label backdoor poisoning attacks against feature-based malware classifiers.
+Regarding attack effectiveness (RQ1), our results show that the values assigned to fixed trigger features strongly affect ASR.
+Across EMBER 2018 and EMBER 2024 Win64, aggressive selectors such as MinPopulation and CountAbsSHAP achieved high ASR, particularly under distribution-based distance sampling.
+CorrCountAbsSHAP and Q95 also maintained useful attack effectiveness, showing that value selection can change the strength of the backdoor even when the trigger feature set is fixed.
+
+Regarding sanitizer-based detectability (RQ2), our results show that trigger value selection also affects poison recall.
+MinPopulation and CountAbsSHAP achieved high ASR, but they were also detected at high rates by Isolation Forest. By contrast, CorrCountAbsSHAP and Q95 reduced poison recall while preserving useful attack effectiveness.
+These results show that trigger value selection changes the effectiveness--detectability relationship.
+The strongest trigger is not necessarily the most practical if poisoned samples can be removed by sanitization.
+
+Regarding malware-similar benign sampling (RQ3), distribution-based distance sampling generally improved ASR, especially on EMBER 2024 Win64, but it did not remove the effect of value selection. 
+Sample selection and value selection are therefore complementary: one determines which benign samples are poisoned, while the other determines the trigger pattern learned by the classifier. 
+Overall, trigger value selection is a core design choice that shapes the effectiveness--detectability profile of clean-label malware backdoors.
+
+This study has several limitations. It focuses on feature-space trigger value selection, does not realize triggers in executable PE binaries, and evaluates the proposed selectors only on LightGBM-based classifiers and two PE malware datasets.
+Future work should study problem-space realizations, broader models and datasets, stronger end-to-end defenses, and value selectors that jointly optimize attack effectiveness and detectability.

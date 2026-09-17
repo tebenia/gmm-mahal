@@ -1,0 +1,57 @@
+{
+  "scope": {
+    "dataset": "EMBER2018",
+    "sampling_strategy": "random",
+    "poison_rate_train": 0.01,
+    "seeds": [
+      42,
+      43
+    ],
+    "selectors": [
+      "min_population_new",
+      "argmin_Nv_sum_abs_shap",
+      "combined_shap",
+      "low_shap_signed",
+      "frequency_bounded_signed_shap",
+      "corr_count_abs_shap",
+      "benign_prototype",
+      "quantile_95"
+    ],
+    "sanitizers": [
+      "isolation_forest",
+      "spectral_signature",
+      "hdbscan"
+    ],
+    "target_features": "problem_space_conservative"
+  },
+  "sanitizer_settings": {
+    "common": {
+      "feature_mode": "hybrid",
+      "top_k": 32,
+      "standardize": true,
+      "random_state": 42
+    },
+    "isolation_forest": {
+      "contamination": 0.02
+    },
+    "spectral_signature": {
+      "removal_percent": 2.0
+    },
+    "hdbscan": {
+      "min_cluster_percent": 0.5,
+      "min_samples_percent": 0.1,
+      "threshold_max_percent": 10.0,
+      "min_keep": 0.2
+    }
+  },
+  "expected_rows": 48,
+  "completed_rows": 48,
+  "missing_rows": 0,
+  "deletion_note": "These compact files preserve scalar sanitizer results. They do not preserve row-level scores, removal indices, or arrays required to rerun a sanitizer or retrain a defended model.",
+  "files": {
+    "seed_level": "/Users/falcon/Machine Learning/Defense GMM-Maha/results/experiment 2/tables/sanitizer_metrics/sanitizer_metrics_seed_level.csv",
+    "aggregate": "/Users/falcon/Machine Learning/Defense GMM-Maha/results/experiment 2/tables/sanitizer_metrics/sanitizer_metrics_mean_std.csv",
+    "recall_pivot": "/Users/falcon/Machine Learning/Defense GMM-Maha/results/experiment 2/tables/sanitizer_metrics/sanitizer_poison_recall_pivot.csv",
+    "coverage": "/Users/falcon/Machine Learning/Defense GMM-Maha/results/experiment 2/tables/sanitizer_metrics/sanitizer_coverage.csv"
+  }
+}

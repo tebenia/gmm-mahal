@@ -1,0 +1,39 @@
+\begin{table}[!t]
+    \centering
+    \caption{EMBER 2018 results at a 1\% poison rate using Isolation Forest.}
+    \label{tab:ember2018_1p_if}
+    \setlength{\tabcolsep}{2.0pt}
+    \renewcommand{\arraystretch}{1.08}
+    \begin{tabular}{llrrrr}
+        \toprule
+        \textbf{Sampling} &
+        \textbf{Selector} &
+        \textbf{ASR} &
+        \makecell{\textbf{Poison}\\\textbf{Recall}} &
+        \makecell{\textbf{Poisons}\\\textbf{Removed}} &
+        \makecell{\textbf{Benign}\\\textbf{Removed}} \\
+        \midrule
+        Random & MinPopulation*      & 87.98 & 100.00 & 1200 &    0 \\
+               & CountAbsSHAP*    & 74.16 & 100.00 & 1200 &    0 \\
+               & CombinedSHAP*     & 52.55 &   0.17 &    2 & 1198 \\
+               & FreqBoundedSigned    & 54.81 &  91.00 & 1092 &  108 \\
+               & LowSignedSHAP       & 83.65 &  97.83 & 1174 &   26 \\
+               & CorrCountAbsSHAP  & 36.41 &   5.25 &   63 & 1137 \\
+               & BenignPrototype   &  4.65 &   0.08 &    1 & 1199 \\
+               & Q95           & 39.32 &  21.58 &  259 &  941 \\
+        \midrule
+        Distribution-based
+               & MinPopulation*      & 98.35 & 100.00 & 1200 &    0 \\
+               & CountAbsSHAP*    & 98.73 &  99.42 & 1193 &    7 \\
+               & CombinedSHAP*     & 87.61 &   0.00 &    0 & 1200 \\
+               & FreqBoundedSigned    & 93.57 &  85.58 & 1027 &  173 \\
+               & LowSignedSHAP       & 88.79 &  97.25 & 1167 &   33 \\
+               & CorrCountAbsSHAP  & 92.72 &   1.92 &   23 & 1177 \\
+               & BenignPrototype   & 29.99 &   0.00 &    0 & 1198 \\
+               & Q95           & 94.99 &   2.75 &   33 & 1167 \\
+        \bottomrule
+    \end{tabular}
+    \vspace{0.5mm}
+    \raggedright
+    * indicates selectors derived from Severi et al.
+\end{table}

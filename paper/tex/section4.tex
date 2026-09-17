@@ -1,0 +1,20 @@
+\section{Experimental Setup}
+We instantiate the explanation-guided clean-label attack pipeline described in Section III using LightGBM classifiers~\cite{lightgbm}.
+Within each experimental condition, the classifier family, trigger-feature selection procedure, and poisoning protocol are fixed, while only the trigger value-selection strategy is varied.
+This design isolates the effect of value selection on attack effectiveness and sanitizer-based detectability.
+
+We use EMBER 2018~\cite{ember2018} and a Win64 PE subset of EMBER 2024~\cite{ember2024}.
+For computational feasibility, we use a stratified 20\% subset of each dataset while preserving the original benign--malware label distribution.
+We focus on Win64 PE files because our attack setting targets static Windows PE malware classifiers.
+Following prior explanation-guided malware backdoor work, we restrict trigger construction to problem-space-conservative features, since modifying arbitrary PE features may violate feasibility or functionality constraints.
+Because this study is conducted in feature space, we do not validate the selected triggers by modifying executable PE binaries.
+After mapping the feasible feature set to both datasets, we retain 17 usable trigger features for EMBER 2018 and 19 for EMBER 2024 Win64.
+For poisoning-sample selection, we compare random benign sampling with distribution-based distance sampling following PMSB~\cite{pmsb}.
+We use poison rates of 1\%, 3\%, and 5\% to represent increasing poisoning budgets and to evaluate whether the relative behavior of the value selectors remains consistent as the number of poisoned samples increases.
+The evaluated value selectors are summarized in Table~\ref{tab:value_selectors}.
+
+We measure attack effectiveness using clean accuracy and attack success rate (ASR), where ASR is the fraction of triggered malware samples that are detected by the clean model but classified as benign by the backdoored model.
+For sanitizer-based detectability, we report poison recall, the number of poisons removed, and the number of benign samples removed.
+A high poison recall is desirable for the defender because more poisoned samples are removed, but it is undesirable for the attacker because it can prevent the backdoor from being learned during retraining.
+We evaluate Isolation Forest~\cite{isolation_forest}, HDBSCAN~\cite{hdbscan}, and Spectral Signature~\cite{spectral_signature}.
+Due to space limitations, the main tables report Isolation Forest as a representative sanitizer baseline, while HDBSCAN and Spectral Signature are used in the broader experiment to check whether the qualitative trends are consistent across sanitizers.

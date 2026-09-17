@@ -29,9 +29,14 @@ def prepare_layout(config_path: str | Path) -> list[Path]:
     created: set[Path] = set()
 
     for spec in baselines.values():
-        for key in ("model_path", "shap_cache_dir", "value_selector_cache_dir"):
+        for key in (
+            "model_path",
+            "subset_indices_path",
+            "shap_cache_dir",
+            "value_selector_cache_dir",
+        ):
             path = project_path(spec[key])
-            directory = path.parent if key == "model_path" else path
+            directory = path.parent if key in {"model_path", "subset_indices_path"} else path
             directory.mkdir(parents=True, exist_ok=True)
             created.add(directory)
 

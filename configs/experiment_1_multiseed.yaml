@@ -1,0 +1,102 @@
+# Experiment 1 seed extension.
+#
+# These baselines keep the original fixed clean models used by Experiment 1.
+# Seed 43 changes the selected 20% subset and attack randomness; it does not
+# retrain either clean model. Each dataset has one seed-specific SHAP cache
+# shared across poison rates, sampling strategies, and value selectors.
+
+baselines:
+  ember2018_original_seed43_1p: &ember2018_original_seed43
+    kind: ember2018
+    dataset_id: ember
+    result_root: results/experiment 1/ember2018/seed_43/poison_rate_0p01
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: balanced_stratified_random
+    seed: 43
+    model: lightgbm
+    feature_version: 2
+    data_dir: ../malwarebackdoors/ember2018
+    model_path: ../malwarebackdoors/ember2018/ember_model_2018.txt
+    shap_cache_dir: artifacts/shap_cache/experiment_1/ember2018/seed_43
+    feature_selection:
+      - shap_largest_abs
+      - combined_shap
+    value_selection:
+      - min_population_new
+      - argmin_Nv_sum_abs_shap
+      - combined_shap
+      - low_shap_signed
+      - frequency_bounded_signed_shap
+      - corr_count_abs_shap
+      - benign_prototype
+      - quantile_95
+    target_features: problem_space_conservative
+    sampling_strategies:
+      - random
+      - distribution_based_distance
+    poison_rates:
+      - 0.01
+    watermark_sizes:
+      - 17
+    iterations: 1
+
+  ember2018_original_seed43_3p:
+    <<: *ember2018_original_seed43
+    result_root: results/experiment 1/ember2018/seed_43/poison_rate_0p03
+    poison_rates:
+      - 0.03
+
+  ember2018_original_seed43_5p:
+    <<: *ember2018_original_seed43
+    result_root: results/experiment 1/ember2018/seed_43/poison_rate_0p05
+    poison_rates:
+      - 0.05
+
+  ember2024_win64_original_seed43_1p: &ember2024_win64_original_seed43
+    kind: ember2024
+    dataset_id: ember2024_win64
+    result_root: results/experiment 1/ember2024_win64/seed_43/poison_rate_0p01
+    platform: Win64
+    train_fraction: 0.2
+    test_fraction: 1.0
+    subset_mode: stratified_random
+    seed: 43
+    model: lightgbm
+    data_root: ../ember2024/EMBER2024/data
+    model_path: ../ember2024/EMBER2024/Model/EMBER2024_Win64.model
+    shap_cache_dir: artifacts/shap_cache/experiment_1/ember2024_win64/seed_43
+    feature_selection:
+      - shap_largest_abs
+      - combined_shap
+    value_selection:
+      - min_population_new
+      - argmin_Nv_sum_abs_shap
+      - combined_shap
+      - low_shap_signed
+      - frequency_bounded_signed_shap
+      - corr_count_abs_shap
+      - benign_prototype
+      - quantile_95
+    target_features: problem_space_conservative
+    sampling_strategies:
+      - random
+      - distribution_based_distance
+    poison_rates:
+      - 0.01
+    watermark_sizes:
+      - 19
+    iterations: 1
+
+  ember2024_win64_original_seed43_3p:
+    <<: *ember2024_win64_original_seed43
+    result_root: results/experiment 1/ember2024_win64/seed_43/poison_rate_0p03
+    poison_rates:
+      - 0.03
+
+  ember2024_win64_original_seed43_5p:
+    <<: *ember2024_win64_original_seed43
+    result_root: results/experiment 1/ember2024_win64/seed_43/poison_rate_0p05
+    poison_rates:
+      - 0.05
+

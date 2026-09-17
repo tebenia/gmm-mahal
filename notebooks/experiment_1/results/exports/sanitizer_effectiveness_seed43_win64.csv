@@ -1,0 +1,17 @@
+sampling_strategy,value_selector,selector,source,poison_recall_mean_percent,poison_recall_sd_percent,asr_percent,clean_accuracy_percent
+distribution_based_distance,argmin_Nv_sum_abs_shap,CountAbsSHAP*,Severi-derived,77.03525641025641,20.085933942861654,99.04213910983246,98.80013538669826
+distribution_based_distance,benign_prototype,BenignPrototype,This work,16.666666666666668,28.867513459481287,81.28109663225588,98.8085970553393
+distribution_based_distance,combined_shap,CombinedSHAP*,Severi-derived,16.474358974358974,19.34905528913115,84.72499576916567,98.74259603993907
+distribution_based_distance,corr_count_abs_shap,CorrCountAbsSHAP,This work,16.634615384615383,20.97658466695522,99.26045016077173,98.79505838551364
+distribution_based_distance,frequency_bounded_signed_shap,FrequencyBoundedSignedSHAP,This work,47.54807692307691,41.3449519056066,95.77931968184126,98.82890506007784
+distribution_based_distance,low_shap_signed,LowSHAPSigned,This work,75.75320512820512,21.433915944409964,93.49636148248436,98.8390590624471
+distribution_based_distance,min_population_new,MinPopulation*,Severi-derived,78.0448717948718,19.05795751322625,99.17752580808936,98.8525977322728
+distribution_based_distance,quantile_95,Quantile95,This work,28.02884615384615,17.088421393155635,96.82179725841937,98.81536639025217
+random,argmin_Nv_sum_abs_shap,CountAbsSHAP*,Severi-derived,53.28525641025641,50.20861466361965,15.643932983584364,98.62413267896429
+random,benign_prototype,BenignPrototype,This work,13.814102564102564,23.926727501993145,2.7178879675071923,98.55982399729226
+random,combined_shap,CombinedSHAP*,Severi-derived,2.5961538461538463,3.888885220013297,7.642579116601795,98.55643932983584
+random,corr_count_abs_shap,CorrCountAbsSHAP,This work,2.8205128205128207,3.816694066807755,10.822474191910644,98.59874767304112
+random,frequency_bounded_signed_shap,FrequencyBoundedSignedSHAP,This work,29.599358974358974,50.47857901231536,15.266542562193264,98.6393636825182
+random,low_shap_signed,LowSHAPSigned,This work,57.868589743589745,38.86864868174821,15.122694195295312,98.61228634286682
+random,min_population_new,MinPopulation*,Severi-derived,54.64743589743589,49.775390785607705,14.345913014046369,98.61567101032324
+random,quantile_95,Quantile95,This work,27.419871794871796,13.471522167771736,8.46674564224065,98.6393636825182

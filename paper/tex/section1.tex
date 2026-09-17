@@ -1,0 +1,46 @@
+\section{Introduction}
+Machine learning has substantially improved malware detection by enabling classifiers to distinguish unseen software samples as malicious or benign from static or behavioral features.
+Datasets such as EMBER provide feature representations of Windows Portable Executable (PE) files and continue to support research on static malware classification~\cite{ember2018}.
+However, malware evolves over time, causing classifier performance to degrade and requiring detection systems to be updated or trained with newly collected samples~\cite{concept_drift}.
+This retraining process creates a new attack surface, especially when the training pipeline relies on external or crowdsourced threat feeds.
+Such feeds can become injection points for clean-label backdoor poisoning, in which attackers insert poisoned samples into training data without controlling the labeling process~\cite{severi}.
+In this attack, the attackers modify benign-labeled training samples by embedding trigger patterns, such as sets of feature-value assignments, while preserving their labels~\cite{severi,gu_badnets,pmsb}.
+The classifier may then learn to associate the trigger pattern with the benign class, and at inference time, malware samples containing the same trigger may be predicted as benign~\cite{severi,pmsb}.
+This attack is difficult to notice when the backdoored model still performs normally on clean samples.
+
+Severi et al. introduced an explanation-guided clean-label backdoor poisoning attack against malware classifiers, showing that feature-based malware detectors can be manipulated through carefully designed trigger patterns~\cite{severi}.
+Their attack uses explanation scores, such as Shapley additive explanations (SHAP) values, to select influential trigger features and then assigns values to those features so that poisoned benign samples teach the classifier to treat the trigger as benign.
+They also proposed several value-selection strategies, including MinPopulation, CountAbsSHAP, and the greedy Combined selector~\cite{severi}.
+These strategies show that value selection is a substantive design choice: rare or low-density values may create stronger backdoor signals, whereas benign-like or co-occurring values may reduce detectability at the cost of attack effectiveness.
+
+Previous studies have demonstrated the effectiveness of clean-label backdoor poisoning attacks against malware classifiers. 
+However, the role of trigger value selection remains less systematically analyzed. 
+Existing work has examined several factors, including poisoning rate, trigger feature selection, sample selection, and data sanitization defenses~\cite{severi,ho_sanitization}.
+However, once the trigger features are fixed, the values assigned to those features can still strongly influence both attack success and detectability.
+For example, rare values may make the trigger easier for the model to learn, but they can also create distinctive patterns that are easier to remove by sanitization methods.
+In contrast, benign-like or co-occurring values may blend better into the benign distribution but may produce a weaker backdoor effect.
+These observations suggest that trigger value selection changes the effectiveness--detectability relationship and should be analyzed as an independent design factor.
+
+In this work, we investigate trigger value selection as an independent design factor in clean-label backdoor poisoning attacks against malware classifiers.
+After fixing the trigger features, we compare rare-value, SHAP-based, frequency-bounded, co-occurrence-aware, prototype-based, and quantile-based value-selection strategies.
+We evaluate these strategies in terms of clean accuracy, attack success, and sanitizer-based detectability.
+We also examine how malware-similar benign sampling, such as distribution-based distance sampling following Poisoning Malware-Similar Benignware (PMSB)~\cite{pmsb}, affects the effectiveness--detectability relationship.
+Specifically, we address the following research questions.
+\begin{enumerate}
+    \item[RQ1)] How do trigger value-selection strategies affect the effectiveness of the backdoor poisoning attack?
+    \item[RQ2)] How do trigger value-selection strategies affect detectability under sanitization defenses?
+    \item[RQ3)] How does malware-similar benign sampling affect the effectiveness--detectability relationship?
+\end{enumerate}
+
+The contributions of this work are as follows.
+\begin{enumerate}
+    \item We isolate trigger value selection as a design factor distinct from trigger feature selection and poisoning-sample selection.
+    \item We compare rare-value, SHAP-based, frequency-bounded, co-occurrence-aware, prototype-based, and quantile-based value selectors.
+    \item We evaluate how these selectors change both attack effectiveness and sanitizer-based detectability, including under random and malware-similar benign sampling.
+\end{enumerate}
+
+The remainder of this paper is organized as follows.
+Section II reviews background and related work.
+Section III describes the attack pipeline and value-selection strategies.
+Section IV presents the experimental setup.
+Section V reports the results and discusses the effectiveness--detectability relationship.

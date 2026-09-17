@@ -9,7 +9,7 @@ The attack and defense code lives in this repository. Large datasets, saved mode
 - `results/experiment 1` contains the historical provider-model experiments.
 - `results/experiment 2` is reserved for locally trained, seed-specific models.
 - `artifacts/experiment_2` stores Experiment 2 models, SHAP caches, and
-  seed-isolated value-selector caches.
+  seed-specific subset indices and seed-isolated value-selector caches.
 - The EMBER2018 and EMBER2024 datasets remain in their external source folders.
 
 See `docs/experiment_2_layout.md` for the complete dataset, seed, poison-rate,
@@ -51,6 +51,31 @@ The attack runner partitions a multi-rate Experiment 2 baseline into distinct
 `poison_rate_0p01`, `poison_rate_0p03`, and `poison_rate_0p05` directories.
 Use `--save-attack-artifacts` when the full watermarked arrays and backdoored
 model are needed for defense experiments.
+
+If an attack summary already exists but its defense artifacts were not saved,
+reconstruct only the training-side package required by the Severi-style
+detectors with `run_generate_attack_artifacts`. This mode does not recompute or
+overwrite attack metrics and does not build `watermarked_X_test.npy`. The
+hybrid detector still requires a trained backdoored model and benign-row SHAP,
+so those two expensive steps remain:
+
+```bash
+python3 -m run_generate_attack_artifacts \
+  --config configs/experiment_2.yaml \
+  --baseline ember2018_20p_seed42 \
+  --sampling random \
+  --feature-selection shap_largest_abs \
+  --value-selection min_population_new \
+  --target-features problem_space_conservative \
+  --poison-rate 0.01 \
+  --watermark-size 17
+```
+
+Run one selector per command. This resets the configured random seed for every
+selector and reproduces the row-sampling behavior of separate baseline runs.
+Use `--dry-run` to inspect the destination first and `--overwrite` only when an
+existing artifact package should be replaced. After generation, pass the
+printed artifact directory to `run_severi_defense` as usual.
 
 `ember2018_20p` now follows the EMBER2024-style cache mechanism: the source
 dataset remains in the original EMBER2018 folder, while the selected train rows

@@ -1,0 +1,33 @@
+dataset,sampling,selector,source,seeds,"ASR, mean ± SD (%)","Clean accuracy, mean ± SD (%)","Clean change, mean ± SD (pp)"
+EMBER2018,Random,MinPopulation*,Severi-derived,3,86.30 ± 13.87,99.71 ± 0.03,-0.29 ± 0.03
+EMBER2018,Random,CountAbsSHAP*,Severi-derived,3,84.60 ± 14.40,99.67 ± 0.07,-0.33 ± 0.07
+EMBER2018,Random,CombinedSHAP*,Severi-derived,3,42.76 ± 4.08,99.73 ± 0.00,-0.27 ± 0.00
+EMBER2018,Random,FrequencyBoundedSignedSHAP,This work,3,73.82 ± 10.55,99.71 ± 0.01,-0.29 ± 0.01
+EMBER2018,Random,CorrCountAbsSHAP,This work,3,49.67 ± 7.64,99.71 ± 0.01,-0.29 ± 0.01
+EMBER2018,Random,BenignPrototype,This work,3,8.13 ± 1.03,99.73 ± 0.00,-0.27 ± 0.00
+EMBER2018,Random,Quantile95,This work,3,58.10 ± 2.25,99.72 ± 0.03,-0.28 ± 0.03
+EMBER2018,Random,LowSHAPSigned,This work,3,68.27 ± 4.26,99.70 ± 0.05,-0.30 ± 0.05
+EMBER2018,Distribution-based,MinPopulation*,Severi-derived,3,99.65 ± 0.16,99.76 ± 0.01,-0.24 ± 0.01
+EMBER2018,Distribution-based,CountAbsSHAP*,Severi-derived,3,99.58 ± 0.16,99.82 ± 0.02,-0.18 ± 0.02
+EMBER2018,Distribution-based,CombinedSHAP*,Severi-derived,3,92.07 ± 0.56,99.79 ± 0.04,-0.21 ± 0.04
+EMBER2018,Distribution-based,FrequencyBoundedSignedSHAP,This work,3,98.09 ± 0.54,99.75 ± 0.06,-0.25 ± 0.06
+EMBER2018,Distribution-based,CorrCountAbsSHAP,This work,3,97.70 ± 2.99,99.77 ± 0.01,-0.23 ± 0.01
+EMBER2018,Distribution-based,BenignPrototype,This work,3,81.82 ± 1.74,99.64 ± 0.23,-0.36 ± 0.23
+EMBER2018,Distribution-based,Quantile95,This work,3,99.59 ± 0.14,99.79 ± 0.01,-0.21 ± 0.01
+EMBER2018,Distribution-based,LowSHAPSigned,This work,3,77.65 ± 6.60,99.79 ± 0.03,-0.21 ± 0.03
+EMBER2024 Win64,Random,MinPopulation*,Severi-derived,3,20.53 ± 2.02,99.73 ± 0.04,-0.27 ± 0.04
+EMBER2024 Win64,Random,CountAbsSHAP*,Severi-derived,3,18.24 ± 1.22,99.71 ± 0.02,-0.29 ± 0.02
+EMBER2024 Win64,Random,CombinedSHAP*,Severi-derived,3,7.94 ± 5.27,99.69 ± 0.03,-0.31 ± 0.03
+EMBER2024 Win64,Random,FrequencyBoundedSignedSHAP,This work,3,18.87 ± 1.92,99.71 ± 0.03,-0.29 ± 0.03
+EMBER2024 Win64,Random,CorrCountAbsSHAP,This work,3,8.19 ± 2.49,99.72 ± 0.03,-0.28 ± 0.03
+EMBER2024 Win64,Random,BenignPrototype,This work,3,1.90 ± 0.55,99.70 ± 0.06,-0.30 ± 0.06
+EMBER2024 Win64,Random,Quantile95,This work,3,7.53 ± 0.81,99.67 ± 0.02,-0.33 ± 0.02
+EMBER2024 Win64,Random,LowSHAPSigned,This work,3,25.00 ± 5.16,99.70 ± 0.01,-0.30 ± 0.01
+EMBER2024 Win64,Distribution-based,MinPopulation*,Severi-derived,3,99.04 ± 0.20,99.87 ± 0.00,-0.13 ± 0.00
+EMBER2024 Win64,Distribution-based,CountAbsSHAP*,Severi-derived,3,99.16 ± 0.66,99.88 ± 0.02,-0.12 ± 0.02
+EMBER2024 Win64,Distribution-based,CombinedSHAP*,Severi-derived,3,70.69 ± 19.18,99.86 ± 0.03,-0.14 ± 0.03
+EMBER2024 Win64,Distribution-based,FrequencyBoundedSignedSHAP,This work,3,89.78 ± 8.87,99.87 ± 0.01,-0.13 ± 0.01
+EMBER2024 Win64,Distribution-based,CorrCountAbsSHAP,This work,3,78.04 ± 17.34,99.86 ± 0.02,-0.14 ± 0.02
+EMBER2024 Win64,Distribution-based,BenignPrototype,This work,3,58.30 ± 4.23,99.85 ± 0.01,-0.15 ± 0.01
+EMBER2024 Win64,Distribution-based,Quantile95,This work,3,71.60 ± 5.35,99.84 ± 0.03,-0.16 ± 0.03
+EMBER2024 Win64,Distribution-based,LowSHAPSigned,This work,3,93.90 ± 3.02,99.86 ± 0.01,-0.14 ± 0.01

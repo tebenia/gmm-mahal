@@ -1,0 +1,22 @@
+\section{Background and Related Work}
+This section reviews clean-label backdoor poisoning attack, sampling strategies, and defenses that are relevant to our analysis of trigger value selection.
+
+\subsection{Clean-Label Backdoor Poisoning Attacks}
+Severi et al. introduced an explanation-guided clean-label backdoor poisoning attack against malware classifiers~\cite{severi}.
+Their method uses SHAP values to select influential trigger features and assigns trigger values using strategies such as MinPopulation, CountAbsSHAP, and the Combined selector.
+The poisoned samples retain their benign labels, causing the trained model to associate the trigger with the benign class while maintaining normal performance on clean samples.
+Other studies have examined clean-label malware backdoors under different assumptions, including black-box attacks using PE surface information and selective backdoors with realizable triggers~\cite{zheng_clean_label,jigsaw}.
+
+\subsection{Sampling Strategies in Clean-Label Malware Poisoning}
+In addition to selecting trigger features and trigger values, choosing which samples to poison can also affect the effectiveness of malware backdoor poisoning attacks.
+Previous work has argued that benignware samples are not all equally useful for poisoning. Some benign samples are more similar to malware samples than others.
+Selecting these malware-similar benign samples as poisoning targets can improve the effectiveness of the backdoor attack.
+This approach uses similarity metrics such as feature-based distance, distribution-based distance, and contribution-space distance~\cite{pmsb}.
+We use sampling strategies such as PMSB to evaluate whether the observed effectiveness--detectability relationship remains consistent under different poisoning-target selection strategies.
+
+\subsection{Defenses and Detectability}
+Previous studies have proposed defenses against clean-label backdoor poisoning attacks on malware classifiers.
+Severi et al. evaluated sanitization methods such as Isolation Forest, Spectral Signature, and clustering-based detection~\cite{severi}.
+Other studies have investigated data sanitization defenses based on ensemble model disagreement, nested training, dimensionality reduction, clustering, and model-agnostic mitigation strategies~\cite{ho_sanitization,venkatesan_nids,countermeasures,model_agnostic_mitigation,reddy_improved_nt,partition,yudin_retraining}.
+These defenses suggest that poisoned samples can be detected through multiple signals, including data anomalies, shared directions in feature space, prediction disagreement, and clustering behavior.
+In this work, we use representative sanitization defenses to measure how different value-selection strategies affect the detectability of poisoned samples.

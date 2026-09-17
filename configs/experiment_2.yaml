@@ -7,6 +7,22 @@
 # partition_results_by_poison_rate expands a multi-rate baseline into separate
 # contexts so summaries and defense artifacts cannot overwrite another rate.
 
+training_profiles:
+  ember2018_lightgbm:
+    mode: optuna_if_missing
+    metric: roc_auc
+    tuning_seed: 42
+    n_trials: 30
+    validation_fraction: 0.1
+    max_tuning_samples: 50000
+  ember2024_win64_lightgbm:
+    mode: optuna_if_missing
+    metric: roc_auc
+    tuning_seed: 42
+    n_trials: 30
+    validation_fraction: 0.1
+    max_tuning_samples: 50000
+
 baselines:
   ember2018_20p_seed42:
     kind: ember2018
@@ -21,6 +37,9 @@ baselines:
     feature_version: 2
     data_dir: ../malwarebackdoors/ember2018
     model_path: artifacts/experiment_2/models/ember2018/seed_42/clean_model.txt
+    subset_indices_path: artifacts/experiment_2/subsets/ember2018/seed_42/train_indices.npy
+    lightgbm_params_path: artifacts/experiment_2/models/ember2018/lightgbm_params.json
+    training_profile: ember2018_lightgbm
     shap_cache_dir: artifacts/experiment_2/shap_cache/ember2018/seed_42
     value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2018/seed_42
     feature_selection: [shap_largest_abs, combined_shap]
@@ -44,6 +63,9 @@ baselines:
     feature_version: 2
     data_dir: ../malwarebackdoors/ember2018
     model_path: artifacts/experiment_2/models/ember2018/seed_43/clean_model.txt
+    subset_indices_path: artifacts/experiment_2/subsets/ember2018/seed_43/train_indices.npy
+    lightgbm_params_path: artifacts/experiment_2/models/ember2018/lightgbm_params.json
+    training_profile: ember2018_lightgbm
     shap_cache_dir: artifacts/experiment_2/shap_cache/ember2018/seed_43
     value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2018/seed_43
     feature_selection: [shap_largest_abs, combined_shap]
@@ -67,6 +89,9 @@ baselines:
     feature_version: 2
     data_dir: ../malwarebackdoors/ember2018
     model_path: artifacts/experiment_2/models/ember2018/seed_44/clean_model.txt
+    subset_indices_path: artifacts/experiment_2/subsets/ember2018/seed_44/train_indices.npy
+    lightgbm_params_path: artifacts/experiment_2/models/ember2018/lightgbm_params.json
+    training_profile: ember2018_lightgbm
     shap_cache_dir: artifacts/experiment_2/shap_cache/ember2018/seed_44
     value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2018/seed_44
     feature_selection: [shap_largest_abs, combined_shap]
@@ -90,6 +115,9 @@ baselines:
     model: lightgbm
     data_root: ../ember2024/EMBER2024/data
     model_path: artifacts/experiment_2/models/ember2024_win64/seed_42/clean_model.txt
+    subset_indices_path: artifacts/experiment_2/subsets/ember2024_win64/seed_42/train_indices.npy
+    lightgbm_params_path: artifacts/experiment_2/models/ember2024_win64/lightgbm_params.json
+    training_profile: ember2024_win64_lightgbm
     shap_cache_dir: artifacts/experiment_2/shap_cache/ember2024_win64/seed_42
     value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2024_win64/seed_42
     feature_selection: [shap_largest_abs, combined_shap]
@@ -113,6 +141,9 @@ baselines:
     model: lightgbm
     data_root: ../ember2024/EMBER2024/data
     model_path: artifacts/experiment_2/models/ember2024_win64/seed_43/clean_model.txt
+    subset_indices_path: artifacts/experiment_2/subsets/ember2024_win64/seed_43/train_indices.npy
+    lightgbm_params_path: artifacts/experiment_2/models/ember2024_win64/lightgbm_params.json
+    training_profile: ember2024_win64_lightgbm
     shap_cache_dir: artifacts/experiment_2/shap_cache/ember2024_win64/seed_43
     value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2024_win64/seed_43
     feature_selection: [shap_largest_abs, combined_shap]
@@ -136,6 +167,9 @@ baselines:
     model: lightgbm
     data_root: ../ember2024/EMBER2024/data
     model_path: artifacts/experiment_2/models/ember2024_win64/seed_44/clean_model.txt
+    subset_indices_path: artifacts/experiment_2/subsets/ember2024_win64/seed_44/train_indices.npy
+    lightgbm_params_path: artifacts/experiment_2/models/ember2024_win64/lightgbm_params.json
+    training_profile: ember2024_win64_lightgbm
     shap_cache_dir: artifacts/experiment_2/shap_cache/ember2024_win64/seed_44
     value_selector_cache_dir: artifacts/experiment_2/value_selector_cache/ember2024_win64/seed_44
     feature_selection: [shap_largest_abs, combined_shap]

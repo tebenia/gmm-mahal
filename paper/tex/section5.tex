@@ -1,0 +1,50 @@
+\section{Results}
+\subsection{Effect of Value Selection on ASR}
+Tables~\ref{tab:ember2018_1p_if} and \ref{tab:ember2024_1p_if} report a representative run at a 1\% poison rate using Isolation Forest as a compact detectability baseline.
+Additional runs with several random seeds, higher poison rates, and other sanitizer baselines were used to check whether the same qualitative pattern appeared.
+The main text focuses on the 1\% Isolation Forest setting because it compactly shows how value selection changes ASR and poison recall.
+
+The results indicate that trigger value selection strongly affects attack success even when the trigger feature set is fixed.
+The Severi-derived selectors, especially MinPopulation and CountAbsSHAP, achieve very high ASR under distribution-based distance sampling on both datasets.
+On EMBER 2018, they achieve 98.35\% and 98.73\% ASR, respectively, while on EMBER 2024 Win64 they achieve 99.09\% and 99.04\%.
+This confirms that rare-value and low-SHAP-contribution value selection can produce effective triggers.
+
+Among the extended selectors, CorrCountAbsSHAP also maintains high ASR under distribution-based sampling, reaching 92.72\% on EMBER 2018 and 98.43\% on EMBER 2024 Win64.
+Q95 achieves 94.99\% ASR on EMBER 2018 and 88.65\% on EMBER 2024 Win64. By contrast, CombinedSHAP and BenignPrototype generally achieve lower ASR, particularly under random sampling.
+Overall, the results indicate that the selected trigger values substantially change attack effectiveness, even when the trigger features and poisoning protocol are held constant.
+
+\input{table/ember2018_1p_if.tex}
+\input{table/ember2024_1p_if.tex}
+
+\subsection{Detectability Profiles}
+Fig.~\ref{fig:asr-defense-profile} visualizes the effectiveness--detectability profile by plotting ASR against Isolation Forest poison recall.
+Points in the upper-right region are effective but easy to detect, whereas points in the upper-left region are effective and harder to detect.
+
+\input{figure/asr-defense-profile.tex}
+
+As shown in Tables~\ref{tab:ember2018_1p_if} and~\ref{tab:ember2024_1p_if}, MinPopulation and CountAbsSHAP occupy the high-ASR and high-recall region under distribution-based distance sampling.
+Under random sampling, they remain highly exposed to Isolation Forest, but their ASR can be much lower, especially on EMBER 2024 Win64.
+In contrast, CombinedSHAP, CorrCountAbsSHAP, BenignPrototype, and Q95 achieve lower poison recall but differ in how much ASR they preserve.
+CombinedSHAP and BenignPrototype can reduce poison recall, but this reduction often comes with substantial ASR loss.
+CorrCountAbsSHAP is more attractive because it preserves high ASR under distribution-based distance sampling while keeping poison recall much lower than the strongest Severi-derived baselines.
+FrequencyBoundedSignedSHAP shows an intermediate profile, retaining relatively high ASR under distribution-based sampling while remaining moderately exposed to sanitization.
+LowSignedSHAP is closer to the aggressive selectors, achieving high ASR but also very high poison recall on both datasets.
+
+Compared with CountAbsSHAP, CorrCountAbsSHAP reduces poison recall from 99.42\% to 1.92\% on EMBER 2018 and from 100.00\% to 12.55\% on EMBER 2024 Win64 under distribution-based sampling, while retaining ASR of 92.72\% and 98.43\%, respectively.
+Q95 shows a favorable effectiveness–detectability profile.
+It achieves 94.99\% ASR with 2.75\% poison recall on EMBER 2018 and 88.65\% ASR with 27.84\% poison recall on EMBER 2024 Win64. In comparison, MinPopulation and CountAbsSHAP achieve approximately 98–99\% ASR but approximately 99–100\% poison recall.
+
+We also evaluated HDBSCAN and Spectral Signature to check whether the observations are specific to Isolation Forest.
+Although the exact poison recall varies across sanitizers, the additional results support the same general pattern: aggressive selectors such as MinPopulation, CountAbsSHAP, and LowSignedSHAP are often more exposed to sanitization, whereas CorrCountAbsSHAP and Q95 show more favorable effectiveness–detectability profiles.
+Evaluating ASR alone can therefore be misleading, because a highly effective attack may still be neutralized if most poisoned samples are removed before retraining.
+
+\subsection{Effect of Sampling Strategy}
+Sampling strategy also has a strong effect on attack effectiveness.
+Distribution-based distance sampling consistently improves ASR compared with random sampling, especially on EMBER 2024 Win64.
+This is consistent with PMSB-style sampling, where poisoning malware-similar benign samples makes the trigger easier for the model to associate with the benign class because these samples are closer to the decision boundary.
+
+However, sampling strategy does not remove the role of value selection.
+Even under distribution-based distance sampling, selectors still differ substantially in both ASR and poison recall.
+This means that sample selection and value selection control different parts of the attack.
+PMSB-style sampling determines which benign samples are poisoned, whereas value selection determines which trigger pattern is learned from those poisoned samples.
+Thus, PMSB-style sampling can strengthen the attack, but the resulting effectiveness–detectability profile still depends on the selected trigger values.

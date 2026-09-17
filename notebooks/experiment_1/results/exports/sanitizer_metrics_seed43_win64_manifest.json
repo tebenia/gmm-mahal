@@ -1,0 +1,43 @@
+{
+  "scope": {
+    "dataset": "EMBER2024 Win64",
+    "seed": 43,
+    "sampling": [
+      "random",
+      "distribution_based_distance"
+    ],
+    "poison_rate": 0.01,
+    "selectors": [
+      "min_population_new",
+      "argmin_Nv_sum_abs_shap",
+      "combined_shap",
+      "low_shap_signed",
+      "frequency_bounded_signed_shap",
+      "corr_count_abs_shap",
+      "benign_prototype",
+      "quantile_95"
+    ],
+    "sanitizers": [
+      "isolation_forest",
+      "spectral_signature",
+      "hdbscan"
+    ],
+    "target_features": "problem_space_conservative"
+  },
+  "settings": {
+    "feature_mode": "hybrid",
+    "top_k": 32,
+    "standardize": true,
+    "defense_random_state": 42,
+    "isolation_contamination": 0.02,
+    "spectral_removal_percent": 2.0,
+    "hdbscan_min_cluster_percent": 0.5,
+    "hdbscan_min_samples_percent": 0.1,
+    "hdbscan_threshold_max_percent": 10.0,
+    "hdbscan_min_keep": 0.2
+  },
+  "expected_rows": 48,
+  "completed_rows": 48,
+  "missing_rows": 0,
+  "deletion_note": "Scalar sanitizer results are preserved; row-level scores and indices are not."
+}

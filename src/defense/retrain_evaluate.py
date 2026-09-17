@@ -138,6 +138,12 @@ def run_defense_retrain(
     X_defended = X_train[:row_limit][keep_mask]
     y_defended = y_train[keep_mask]
 
+    context = None
+    if baseline is not None:
+        # build_context also configures model_utils with the clean run's
+        # LightGBM parameters and seed, keeping defense retraining comparable.
+        context = build_context(baseline, config_path=config_path)
+
     defended_model = model_utils.train_model("lightgbm", X_defended, y_defended)
     if save_model and defended_model_path is not None:
         defended_model.save_model(str(defended_model_path))
@@ -153,12 +159,10 @@ def run_defense_retrain(
     defended_asr = float(np.mean(defended_watermarked_preds == 0))
     defended_detection_rate = float(np.mean(defended_watermarked_preds == 1))
 
-    context = None
     clean_eval = None
     defended_clean_accuracy = None
     backdoored_clean_accuracy = None
     if baseline is not None:
-        context = build_context(baseline, config_path=config_path)
         _, _, X_clean_test, y_clean_test = data_utils.load_dataset(dataset=context.dataset_id, selected=True)
         if max_eval_rows is not None:
             eval_rows = min(int(max_eval_rows), X_clean_test.shape[0])

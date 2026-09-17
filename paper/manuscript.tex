@@ -1,0 +1,55 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+%Template version as of 6/27/2024
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{makecell}
+\usepackage[hidelinks]{hyperref}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Trigger Value Selection in Clean-Label Malware Backdoors: An Effectiveness--Detectability Analysis}
+
+\author{
+\IEEEauthorblockN{Tri Budi Sabdo Utomo, Kazushi Okamoto, Koki Karube, Kei Harada, Atsushi Shibata}
+\IEEEauthorblockA{Department of Informatics, Graduate School of Informatics and Engineering, The University of Electro-Communications}
+\IEEEauthorblockA{1-5-1 Chofugaoka, Chofu, Tokyo 182-8585, Japan}
+\IEEEauthorblockA{\{tribudi-utomo, kazushi, karubekoki, harada, shibata-atsushi\}@uec.ac.jp}
+}
+
+\maketitle
+
+\begin{abstract}
+Clean-label backdoor poisoning is a threat to machine learning-based malware classifiers because poisoned samples can be inserted into training data without changing their labels.
+Previous explanation-guided attacks mainly focus on selecting important trigger features, but the values assigned to these features can also affect the attack behavior.
+In this paper, we study trigger value selection as an independent design factor in clean-label backdoor attacks against feature-based malware classifiers.
+We evaluate several value-selection strategies on EMBER 2018 and a Win64 PE subset of EMBER 2024 using LightGBM classifiers.
+We compare rare-value, SHAP-based, frequency-bounded, co-occurrence-aware, and quantile-based selectors under random and distribution-based malware-similar benign sampling.
+The results show that aggressive selectors such as MinPopulation and CountAbsSHAP can achieve high attack success rate, especially under distribution-based sampling, but they are also easier to detect by sanitization methods such as Isolation Forest.
+In contrast, selectors such as CorrCountAbsSHAP and Q95 can reduce poison recall while keeping useful attack effectiveness.
+These findings show that trigger value selection is not merely an implementation detail, but an important design choice that shapes the effectiveness–detectability profile of clean-label malware backdoor attacks.
+\end{abstract}
+
+\begin{IEEEkeywords}
+malware classification, clean-label poisoning, backdoor attacks, trigger value selection, data sanitization
+\end{IEEEkeywords}
+
+\input{tex/section1.tex}
+\input{tex/section2.tex}
+\input{tex/section3.tex}
+\input{tex/section4.tex}
+\input{tex/section5.tex}
+\input{tex/section6.tex}
+\input{tex/reference.tex}
+
+\end{document}
