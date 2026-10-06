@@ -1,0 +1,31 @@
+\begin{table}[!t]
+    \centering
+    \caption{Experimental configuration for the effectiveness--detectability study.}
+    \label{tab:experimental_setup}
+    \setlength{\tabcolsep}{3.2pt}
+    \renewcommand{\arraystretch}{1.04}
+    \begin{tabularx}{\columnwidth}{>{\raggedright\arraybackslash}p{1.55cm} X}
+        \toprule
+        \textbf{Setting} & \textbf{Configuration} \\
+        \midrule
+        Dataset
+            & EMBER 2018 and EMBER 2024 Win64; stratified 20\% subsets preserving the benign--malware label distribution. \\
+        Features
+            & 2,381 dimensions and 17 trigger features for EMBER 2018; 2,568 dimensions and 19 trigger features for EMBER 2024 Win64. \\
+        Classifier
+            & LightGBM. The classifier, trigger features, and poisoning protocol are fixed within each condition. \\
+        Sampling
+            & Random and distribution-based malware-similar benign sampling following PMSB. \\
+        Poison rates
+            & 1\%, 3\%, and 5\%; the compact main tables report the 1\% setting. \\
+        Selectors
+            & MinPopulation, CountAbsSHAP, CombinedSHAP, FreqBoundedSigned, LowSignedSHAP, CorrCountAbsSHAP, BenignPrototype, and Quantile95. \\
+        Sanitizers
+            & Isolation Forest, HDBSCAN, and Spectral Signature; poison recall is the primary detectability measure. \\
+        Repeats
+            & Two runs are aggregated for the current mean $\pm$ standard-deviation results. \\
+        Scope
+            & Triggers use problem-space-conservative features. The attack is evaluated in feature space; PE binaries are not modified or executed. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}

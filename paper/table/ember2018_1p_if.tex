@@ -1,36 +1,35 @@
 \begin{table}[!t]
     \centering
-    \caption{EMBER 2018 results at a 1\% poison rate using Isolation Forest.}
+    \caption{EMBER 2018 results at a 1\% poison rate using Isolation Forest. Values are mean $\pm$ standard deviation across 3 runs.}
     \label{tab:ember2018_1p_if}
-    \setlength{\tabcolsep}{2.0pt}
+    \setlength{\tabcolsep}{3.0pt}
     \renewcommand{\arraystretch}{1.08}
-    \begin{tabular}{llrrrr}
+    \begin{tabular}{lrrr}
         \toprule
-        \textbf{Sampling} &
         \textbf{Selector} &
-        \textbf{ASR} &
-        \makecell{\textbf{Poison}\\\textbf{Recall}} &
-        \makecell{\textbf{Poisons}\\\textbf{Removed}} &
-        \makecell{\textbf{Benign}\\\textbf{Removed}} \\
+        \makecell{\textbf{ASR}\\($\%$)} &
+        \makecell{\textbf{Clean accuracy}\\($\%$)} &
+        \makecell{\textbf{Poison recall}\\($\%$)} \\
         \midrule
-        Random & MinPopulation*      & 87.98 & 100.00 & 1200 &    0 \\
-               & CountAbsSHAP*    & 74.16 & 100.00 & 1200 &    0 \\
-               & CombinedSHAP*     & 52.55 &   0.17 &    2 & 1198 \\
-               & FreqBoundedSigned    & 54.81 &  91.00 & 1092 &  108 \\
-               & LowSignedSHAP       & 83.65 &  97.83 & 1174 &   26 \\
-               & CorrCountAbsSHAP  & 36.41 &   5.25 &   63 & 1137 \\
-               & BenignPrototype   &  4.65 &   0.08 &    1 & 1199 \\
-               & Q95           & 39.32 &  21.58 &  259 &  941 \\
+        \multicolumn{4}{l}{\textit{Random sampling}} \\
+        MinPopulation*      & 77.71 $\pm$ 14.52 & 97.80 $\pm$ 0.01 & 100.00 $\pm$ 0.00 \\
+        CountAbsSHAP*       & 69.68 $\pm$ 6.34  & 97.70 $\pm$ 0.10 & 100.00 $\pm$ 0.00 \\
+        CombinedSHAP*       & 46.87 $\pm$ 8.02  & 97.67 $\pm$ 0.08 & 0.08 $\pm$ 0.12 \\
+        FreqBoundedSigned   & 60.74 $\pm$ 8.38  & 97.59 $\pm$ 0.18 & 89.00 $\pm$ 2.83 \\
+        LowSignedSHAP       & 74.75 $\pm$ 12.59 & 97.69 $\pm$ 0.11 & 98.50 $\pm$ 0.94 \\
+        CorrCountAbsSHAP    & 28.75 $\pm$ 10.83 & 97.69 $\pm$ 0.07 & 3.63 $\pm$ 2.30 \\
+        BenignPrototype     & 5.81 $\pm$ 1.64  & 97.66 $\pm$ 0.04 & 0.04 $\pm$ 0.06 \\
+        Quantile95          & 45.55 $\pm$ 8.81  & 97.61 $\pm$ 0.07 & 26.33 $\pm$ 6.72 \\
         \midrule
-        Distribution-based
-               & MinPopulation*      & 98.35 & 100.00 & 1200 &    0 \\
-               & CountAbsSHAP*    & 98.73 &  99.42 & 1193 &    7 \\
-               & CombinedSHAP*     & 87.61 &   0.00 &    0 & 1200 \\
-               & FreqBoundedSigned    & 93.57 &  85.58 & 1027 &  173 \\
-               & LowSignedSHAP       & 88.79 &  97.25 & 1167 &   33 \\
-               & CorrCountAbsSHAP  & 92.72 &   1.92 &   23 & 1177 \\
-               & BenignPrototype   & 29.99 &   0.00 &    0 & 1198 \\
-               & Q95           & 94.99 &   2.75 &   33 & 1167 \\
+        \multicolumn{4}{l}{\textit{Distribution-based sampling}} \\
+        MinPopulation*      & 97.94 $\pm$ 0.58 & 97.79 $\pm$ 0.09 & 100.00 $\pm$ 0.00 \\
+        CountAbsSHAP*       & 98.87 $\pm$ 0.21 & 97.92 $\pm$ 0.08 & 99.71 $\pm$ 0.41 \\
+        CombinedSHAP*       & 86.86 $\pm$ 1.07 & 97.90 $\pm$ 0.14 & 0.00 $\pm$ 0.00 \\
+        FreqBoundedSigned   & 95.35 $\pm$ 2.51 & 97.99 $\pm$ 0.02 & 90.33 $\pm$ 6.72 \\
+        LowSignedSHAP       & 88.74 $\pm$ 0.06 & 97.82 $\pm$ 0.19 & 98.63 $\pm$ 1.94 \\
+        CorrCountAbsSHAP    & 79.33 $\pm$ 18.94 & 97.70 $\pm$ 0.16 & 1.13 $\pm$ 1.12 \\
+        BenignPrototype     & 42.66 $\pm$ 17.93 & 97.67 $\pm$ 0.26 & 0.00 $\pm$ 0.00 \\
+        Quantile95          & 93.74 $\pm$ 1.76 & 97.78 $\pm$ 0.11 & 6.33 $\pm$ 5.07 \\
         \bottomrule
     \end{tabular}
     \vspace{0.5mm}

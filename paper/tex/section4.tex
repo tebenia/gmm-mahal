@@ -3,18 +3,23 @@ We instantiate the explanation-guided clean-label attack pipeline described in S
 Within each experimental condition, the classifier family, trigger-feature selection procedure, and poisoning protocol are fixed, while only the trigger value-selection strategy is varied.
 This design isolates the effect of value selection on attack effectiveness and sanitizer-based detectability.
 
-We use EMBER 2018~\cite{ember2018} and a Win64 PE subset of EMBER 2024~\cite{ember2024}.
-For computational feasibility, we use a stratified 20\% subset of each dataset while preserving the original benign--malware label distribution.
+We use EMBER 2018~\cite{ember2018} and the Win64 PE subset of EMBER 2024~\cite{ember2024}.
+The EMBER 2018 source contains 800,000 training rows, of which 600,000 are labeled and 200,000 are unlabeled.
+We sample 20\% of the labeled training pool using balanced stratified sampling, resulting in 120,000 training rows (60,000 benign and 60,000 malware); the unlabeled rows are not used.
+The EMBER 2018 test split contains 200,000 labeled rows (100,000 benign and 100,000 malware), all of which are used for evaluation.
+For EMBER 2024 Win64, the 20\% stratified training subset contains 208,000 labeled rows (104,000 benign and 104,000 malware), and the complete test split contains 240,000 labeled rows (120,000 benign and 120,000 malware).
+Both representations contain 2,381 features for EMBER 2018 and 2,568 features for EMBER 2024 Win64.
 We focus on Win64 PE files because our attack setting targets static Windows PE malware classifiers.
-Following prior explanation-guided malware backdoor work, we restrict trigger construction to problem-space-conservative features, since modifying arbitrary PE features may violate feasibility or functionality constraints.
+Following prior explanation-guided malware backdoor work, we restrict trigger construction to problem-space-conservative features, retaining 17 trigger features for EMBER 2018 and 19 for EMBER 2024 Win64.
 Because this study is conducted in feature space, we do not validate the selected triggers by modifying executable PE binaries.
-After mapping the feasible feature set to both datasets, we retain 17 usable trigger features for EMBER 2018 and 19 for EMBER 2024 Win64.
 For poisoning-sample selection, we compare random benign sampling with distribution-based distance sampling following PMSB~\cite{pmsb}.
-We use poison rates of 1\%, 3\%, and 5\% to represent increasing poisoning budgets and to evaluate whether the relative behavior of the value selectors remains consistent as the number of poisoned samples increases.
+The main effectiveness--detectability comparison uses a 1\% poison rate.
+The implementation also supports higher poison rates, but those settings are outside the scope of the analysis reported in this paper.
 The evaluated value selectors are summarized in Table~\ref{tab:value_selectors}.
 
 We measure attack effectiveness using clean accuracy and attack success rate (ASR), where ASR is the fraction of triggered malware samples that are detected by the clean model but classified as benign by the backdoored model.
-For sanitizer-based detectability, we report poison recall, the number of poisons removed, and the number of benign samples removed.
+For sanitizer-based detectability, we use poison recall as the primary metric; the numbers of poisoned and benign rows removed are retained in the experiment artifacts for supplementary analysis.
 A high poison recall is desirable for the defender because more poisoned samples are removed, but it is undesirable for the attacker because it can prevent the backdoor from being learned during retraining.
-We evaluate Isolation Forest~\cite{isolation_forest}, HDBSCAN~\cite{hdbscan}, and Spectral Signature~\cite{spectral_signature}.
+We evaluate Isolation Forest~\cite{isolation_forest}, HDBSCAN~\cite{hdbscan}, and Spectral Signature~\cite{spectral_signature} on standardized hybrid features using the top 32 selected features.
+The settings are contamination $0.02$ for Isolation Forest, 2\% removal for Spectral Signature, and HDBSCAN parameters of 0.5\% minimum cluster size, 0.1\% minimum samples, 10\% maximum cluster size, and 0.2 minimum keep probability.
 Due to space limitations, the main tables report Isolation Forest as a representative sanitizer baseline, while HDBSCAN and Spectral Signature are used in the broader experiment to check whether the qualitative trends are consistent across sanitizers.

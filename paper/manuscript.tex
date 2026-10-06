@@ -36,7 +36,7 @@ In this paper, we study trigger value selection as an independent design factor 
 We evaluate several value-selection strategies on EMBER 2018 and a Win64 PE subset of EMBER 2024 using LightGBM classifiers.
 We compare rare-value, SHAP-based, frequency-bounded, co-occurrence-aware, and quantile-based selectors under random and distribution-based malware-similar benign sampling.
 The results show that aggressive selectors such as MinPopulation and CountAbsSHAP can achieve high attack success rate, especially under distribution-based sampling, but they are also easier to detect by sanitization methods such as Isolation Forest.
-In contrast, selectors such as CorrCountAbsSHAP and Q95 can reduce poison recall while keeping useful attack effectiveness.
+In contrast, selectors such as CorrCountAbsSHAP and Quantile95 can reduce poison recall while keeping useful attack effectiveness.
 These findings show that trigger value selection is not merely an implementation detail, but an important design choice that shapes the effectiveness–detectability profile of clean-label malware backdoor attacks.
 \end{abstract}
 

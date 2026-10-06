@@ -20,7 +20,7 @@ The attack objective is to cause triggered malware samples to evade detection wh
 \subsection{Trigger Value Selection Strategies}
 The main focus of this work is trigger value selection.
 After the set of trigger features $F_{T} = \{f_{1}, f_{2}, \cdots, f_{k}\}$ is fixed, a value selector determines which value $v_{i}$ should be assigned to each selected feature $f_{i}$.
-In addition to the Severi-derived selectors~\cite{severi}, we introduce five extended selectors: FrequencyBoundedSignedSHAP, LowSignedSHAP, CorrCountAbsSHAP, BenignPrototype, and QuantileDistribution.
+In addition to the Severi-derived selectors~\cite{severi}, we introduce five extended selectors: FreqBoundedSigned, LowSignedSHAP, CorrCountAbsSHAP, BenignPrototype, and QuantileDistribution.
 These selectors are designed to test whether signed SHAP direction, frequency bounds, co-occurrence support, benign prototypes, or empirical quantiles can change the effectiveness--detectability relationship.
 We group the value selectors according to the main signal used by each selector: frequency or distribution, SHAP contribution, and co-occurrence or prototype support.
 These categories are not mutually exclusive; some selectors combine multiple signals, such as frequency and SHAP magnitude, or signed SHAP contribution and co-occurrence.
@@ -31,7 +31,7 @@ The selectors choose values according to how common, rare, or distributionally p
 Rare-value selection places the trigger in a sparse region of the feature space, following the intuition of the MinPopulation method~\cite{severi}.
 Such values may give the trigger stronger leverage over the decision boundary, but they may also create more distinctive patterns that are easier to detect.
 Frequency-bounded and quantile-based selectors are included to test whether controlling the rarity or empirical position of trigger values changes the effectiveness--detectability profiles.
-For QuantileDistribution, we evaluated Q05, Q50, and Q95, and report Q95 in the main tables because it gave the strongest and most consistent results.
+For QuantileDistribution, we evaluated Quantile05, Quantile50, and Quantile95, and report Quantile95 in the main tables because it gave the strongest and most consistent results.
 
 \subsubsection{SHAP-based Selectors}
 The selectors use feature attribution scores to estimate how candidate values contribute to the classifier's decision.
@@ -44,6 +44,6 @@ We evaluate whether using signed SHAP values produces stronger or less detectabl
 The selectors consider whether selected feature-value pairs naturally appear together in benign samples.
 This follows the intuition of the CombinedSHAP method~\cite{severi}, which greedily selects feature-value pairs that remain consistent with existing benign samples.
 Unlike independent value selection, co-occurrence-aware selection aims to preserve relationships among selected feature values so that the trigger better blends into the benign distribution.
-Previous work has noted that independently selected values may not correspond to naturally occurring benign patterns, while Combined-style selection is designed to align with existing benign-oriented regions~\cite{severi,ho_sanitization}.
+Previous work has noted that independently selected values may not correspond to naturally occurring benign patterns, while CombinedSHAP selection is designed to align with existing benign-oriented regions~\cite{severi,ho_sanitization}.
 
 \input{table/value_selectors.tex}

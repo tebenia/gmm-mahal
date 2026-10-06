@@ -1,16 +1,16 @@
 \section{Results}
 \subsection{Effect of Value Selection on ASR}
-Tables~\ref{tab:ember2018_1p_if} and \ref{tab:ember2024_1p_if} report a representative run at a 1\% poison rate using Isolation Forest as a compact detectability baseline.
-Additional runs with several random seeds, higher poison rates, and other sanitizer baselines were used to check whether the same qualitative pattern appeared.
+Tables~\ref{tab:ember2018_1p_if} and \ref{tab:ember2024_1p_if} report the mean results at a 1\% poison rate using Isolation Forest as a compact detectability baseline.
+Each reported experimental condition was repeated three times, and the tables report the corresponding mean and standard deviation.
 The main text focuses on the 1\% Isolation Forest setting because it compactly shows how value selection changes ASR and poison recall.
 
 The results indicate that trigger value selection strongly affects attack success even when the trigger feature set is fixed.
 The Severi-derived selectors, especially MinPopulation and CountAbsSHAP, achieve very high ASR under distribution-based distance sampling on both datasets.
-On EMBER 2018, they achieve 98.35\% and 98.73\% ASR, respectively, while on EMBER 2024 Win64 they achieve 99.09\% and 99.04\%.
+On EMBER 2018, they achieve 97.94\% and 98.87\% ASR, respectively, while on EMBER 2024 Win64 they achieve 99.14\% and 99.04\%.
 This confirms that rare-value and low-SHAP-contribution value selection can produce effective triggers.
 
-Among the extended selectors, CorrCountAbsSHAP also maintains high ASR under distribution-based sampling, reaching 92.72\% on EMBER 2018 and 98.43\% on EMBER 2024 Win64.
-Q95 achieves 94.99\% ASR on EMBER 2018 and 88.65\% on EMBER 2024 Win64. By contrast, CombinedSHAP and BenignPrototype generally achieve lower ASR, particularly under random sampling.
+Among the extended selectors, CorrCountAbsSHAP also maintains useful ASR under distribution-based sampling, reaching 79.33\% on EMBER 2018 and 98.85\% on EMBER 2024 Win64.
+Quantile95 achieves 93.74\% ASR on EMBER 2018 and 92.73\% on EMBER 2024 Win64. By contrast, CombinedSHAP and BenignPrototype generally achieve lower ASR, particularly under random sampling.
 Overall, the results indicate that the selected trigger values substantially change attack effectiveness, even when the trigger features and poisoning protocol are held constant.
 
 \input{table/ember2018_1p_if.tex}
@@ -24,18 +24,21 @@ Points in the upper-right region are effective but easy to detect, whereas point
 
 As shown in Tables~\ref{tab:ember2018_1p_if} and~\ref{tab:ember2024_1p_if}, MinPopulation and CountAbsSHAP occupy the high-ASR and high-recall region under distribution-based distance sampling.
 Under random sampling, they remain highly exposed to Isolation Forest, but their ASR can be much lower, especially on EMBER 2024 Win64.
-In contrast, CombinedSHAP, CorrCountAbsSHAP, BenignPrototype, and Q95 achieve lower poison recall but differ in how much ASR they preserve.
+In contrast, CombinedSHAP, CorrCountAbsSHAP, BenignPrototype, and Quantile95 achieve lower poison recall but differ in how much ASR they preserve.
 CombinedSHAP and BenignPrototype can reduce poison recall, but this reduction often comes with substantial ASR loss.
 CorrCountAbsSHAP is more attractive because it preserves high ASR under distribution-based distance sampling while keeping poison recall much lower than the strongest Severi-derived baselines.
-FrequencyBoundedSignedSHAP shows an intermediate profile, retaining relatively high ASR under distribution-based sampling while remaining moderately exposed to sanitization.
+FreqBoundedSigned shows an intermediate profile, retaining relatively high ASR under distribution-based sampling while remaining moderately exposed to sanitization.
 LowSignedSHAP is closer to the aggressive selectors, achieving high ASR but also very high poison recall on both datasets.
 
-Compared with CountAbsSHAP, CorrCountAbsSHAP reduces poison recall from 99.42\% to 1.92\% on EMBER 2018 and from 100.00\% to 12.55\% on EMBER 2024 Win64 under distribution-based sampling, while retaining ASR of 92.72\% and 98.43\%, respectively.
-Q95 shows a favorable effectiveness–detectability profile.
-It achieves 94.99\% ASR with 2.75\% poison recall on EMBER 2018 and 88.65\% ASR with 27.84\% poison recall on EMBER 2024 Win64. In comparison, MinPopulation and CountAbsSHAP achieve approximately 98–99\% ASR but approximately 99–100\% poison recall.
+Compared with CountAbsSHAP, CorrCountAbsSHAP reduces poison recall from 99.71\% to 1.13\% on EMBER 2018 and from 100.00\% to 10.34\% on EMBER 2024 Win64 under distribution-based sampling, while retaining ASR of 79.33\% and 98.85\%, respectively.
+Quantile95 shows a favorable effectiveness–detectability profile.
+It achieves 93.74\% ASR with 6.33\% poison recall on EMBER 2018 and 92.73\% ASR with 29.09\% poison recall on EMBER 2024 Win64. In comparison, MinPopulation and CountAbsSHAP achieve approximately 98–99\% ASR but approximately 99–100\% poison recall.
 
 We also evaluated HDBSCAN and Spectral Signature to check whether the observations are specific to Isolation Forest.
-Although the exact poison recall varies across sanitizers, the additional results support the same general pattern: aggressive selectors such as MinPopulation, CountAbsSHAP, and LowSignedSHAP are often more exposed to sanitization, whereas CorrCountAbsSHAP and Q95 show more favorable effectiveness–detectability profiles.
+Although poison-recall levels vary across sanitizers and datasets, HDBSCAN and Spectral Signature generally reproduce the same trend: MinPopulation, CountAbsSHAP, and LowSignedSHAP are more exposed, whereas CorrCountAbsSHAP and Quantile95 retain useful ASR with lower poison recall.
+For example, under distribution-based sampling, HDBSCAN poison recall ranges from 64.13--76.75\% for MinPopulation and CountAbsSHAP, but only 26.50--43.70\% for CorrCountAbsSHAP and Quantile95 across the two datasets.
+Spectral Signature shows an even stronger contrast, with 58.71--97.67\% recall for the former selectors versus 0.79--9.81\% for the latter.
+Among the extended selectors, CorrCountAbsSHAP and Quantile95 therefore provide the clearest effectiveness--detectability trade-off, preserving attack effectiveness while reducing the fraction of poisoned samples identified by sanitization.
 Evaluating ASR alone can therefore be misleading, because a highly effective attack may still be neutralized if most poisoned samples are removed before retraining.
 
 \subsection{Effect of Sampling Strategy}

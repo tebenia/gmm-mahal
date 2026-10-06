@@ -1,0 +1,38 @@
+\begin{table}[!t]
+    \centering
+    \caption{EMBER 2024 Win64 results at a 1\% poison rate using Isolation Forest. Values are mean $\pm$ standard deviation across three runs (seeds 42, 43, and 44).}
+    \label{tab:ember2024_1p_if_3seeds}
+    \setlength{\tabcolsep}{3.0pt}
+    \renewcommand{\arraystretch}{1.08}
+    \begin{tabular}{lrrr}
+        \toprule
+        \textbf{Selector} &
+        \makecell{\textbf{ASR}\\($\%$)} &
+        \makecell{\textbf{Clean accuracy}\\($\%$)} &
+        \makecell{\textbf{Poison recall}\\($\%$)} \\
+        \midrule
+        \multicolumn{4}{l}{\textit{Random sampling}} \\
+        MinPopulation*       & 16.17 $\pm$ 1.58 & 98.56 $\pm$ 0.04 & 100.00 $\pm$ 0.00 \\
+        CountAbsSHAP*        & 15.83 $\pm$ 0.74 & 98.56 $\pm$ 0.05 & 100.00 $\pm$ 0.00 \\
+        CombinedSHAP*        & 7.23 $\pm$ 0.40 & 98.53 $\pm$ 0.03 & 1.09 $\pm$ 0.56 \\
+        FreqBoundedSigned    & 16.96 $\pm$ 2.56 & 98.58 $\pm$ 0.07 & 83.77 $\pm$ 4.34 \\
+        LowSignedSHAP        & 19.89 $\pm$ 4.85 & 98.57 $\pm$ 0.04 & 99.04 $\pm$ 1.13 \\
+        CorrCountAbsSHAP     & 11.44 $\pm$ 0.56 & 98.55 $\pm$ 0.05 & 2.15 $\pm$ 1.90 \\
+        BenignPrototype      & 2.51 $\pm$ 0.28 & 98.57 $\pm$ 0.01 & 0.00 $\pm$ 0.00 \\
+        Quantile95           & 9.14 $\pm$ 1.59 & 98.46 $\pm$ 0.16 & 20.79 $\pm$ 7.23 \\
+        \midrule
+        \multicolumn{4}{l}{\textit{Distribution-based sampling}} \\
+        MinPopulation*       & 99.14 $\pm$ 0.04 & 98.81 $\pm$ 0.05 & 100.00 $\pm$ 0.00 \\
+        CountAbsSHAP*        & 99.04 $\pm$ 0.00 & 98.83 $\pm$ 0.03 & 100.00 $\pm$ 0.00 \\
+        CombinedSHAP*        & 77.05 $\pm$ 14.83 & 98.76 $\pm$ 0.03 & 2.40 $\pm$ 0.43 \\
+        FreqBoundedSigned    & 95.79 $\pm$ 0.01 & 98.81 $\pm$ 0.04 & 81.83 $\pm$ 14.07 \\
+        LowSignedSHAP        & 94.44 $\pm$ 1.82 & 98.84 $\pm$ 0.01 & 99.34 $\pm$ 1.06 \\
+        CorrCountAbsSHAP     & 98.92 $\pm$ 0.43 & 98.82 $\pm$ 0.03 & 9.73 $\pm$ 2.45 \\
+        BenignPrototype      & 63.78 $\pm$ 15.28 & 98.75 $\pm$ 0.06 & 0.00 $\pm$ 0.00 \\
+        Quantile95           & 93.41 $\pm$ 4.25 & 98.72 $\pm$ 0.11 & 29.74 $\pm$ 1.69 \\
+        \bottomrule
+    \end{tabular}
+    \vspace{0.5mm}
+    \raggedright
+    * indicates selectors derived from Severi et al.
+\end{table}

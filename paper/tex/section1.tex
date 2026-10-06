@@ -10,7 +10,7 @@ This attack is difficult to notice when the backdoored model still performs norm
 
 Severi et al. introduced an explanation-guided clean-label backdoor poisoning attack against malware classifiers, showing that feature-based malware detectors can be manipulated through carefully designed trigger patterns~\cite{severi}.
 Their attack uses explanation scores, such as Shapley additive explanations (SHAP) values, to select influential trigger features and then assigns values to those features so that poisoned benign samples teach the classifier to treat the trigger as benign.
-They also proposed several value-selection strategies, including MinPopulation, CountAbsSHAP, and the greedy Combined selector~\cite{severi}.
+They also proposed several value-selection strategies, including MinPopulation, CountAbsSHAP, and the greedy CombinedSHAP selector~\cite{severi}.
 These strategies show that value selection is a substantive design choice: rare or low-density values may create stronger backdoor signals, whereas benign-like or co-occurring values may reduce detectability at the cost of attack effectiveness.
 
 Previous studies have demonstrated the effectiveness of clean-label backdoor poisoning attacks against malware classifiers. 

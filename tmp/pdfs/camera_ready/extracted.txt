@@ -1,0 +1,410 @@
+ Trigger Value Selection in Clean-Label Malware
+Backdoors: An Effectiveness–Detectability Analysis
+                Tri Budi Sabdo Utomo, Kazushi Okamoto, Koki Karube, Kei Harada, Atsushi Shibata
+  Department of Informatics, Graduate School of Informatics and Engineering, The University of Electro-Communications
+                                    1-5-1 Chofugaoka, Chofu, Tokyo 182-8585, Japan
+                         {tribudi-utomo, kazushi, karubekoki, harada, shibata-atsushi}@uec.ac.jp
+
+
+   Abstract—Clean-label backdoor poisoning is a threat to ma-          benign [6], [8]. This attack is difficult to notice when the
+chine learning-based malware classifiers because poisoned sam-         backdoored model still performs normally on clean samples.
+ples can be inserted into training data without changing their            Severi et al. introduced an explanation-guided clean-label
+labels. Previous explanation-guided attacks mainly focus on
+selecting important trigger features, but the values assigned          backdoor poisoning attack against malware classifiers, show-
+to these features can also affect the attack behavior. In this         ing that feature-based malware detectors can be manipulated
+paper, we study trigger value selection as an independent design       through carefully designed trigger patterns [6]. Their attack
+factor in clean-label backdoor attacks against feature-based           uses explanation scores, such as Shapley additive explana-
+malware classifiers. We evaluate several value-selection strategies    tions (SHAP) values, to select influential trigger features
+on EMBER 2018 and a Win64 PE subset of EMBER 2024
+using LightGBM classifiers. We compare rare-value, SHAP-               and then assigns values to those features so that poisoned
+based, frequency-bounded, co-occurrence-aware, and quantile-           benign samples teach the classifier to treat the trigger as
+based selectors under random and distribution-based malware-           benign. They also proposed several value-selection strategies,
+similar benign sampling. The results show that aggressive selec-       including MinPopulation, CountAbsSHAP, and the greedy
+tors such as MinPopulation and CountAbsSHAP can achieve high           CombinedSHAP selector [6]. These strategies show that value
+attack success rate, especially under distribution-based sampling,
+but they are also easier to detect by sanitization methods such        selection is a substantive design choice: rare or low-density
+as Isolation Forest. In contrast, selectors such as CorrCountAb-       values may create stronger backdoor signals, whereas benign-
+sSHAP and Quantile95 can reduce poison recall while keeping            like or co-occurring values may reduce detectability at the cost
+useful attack effectiveness. These findings show that trigger value    of attack effectiveness.
+selection is not merely an implementation detail, but an important        Previous studies have demonstrated the effectiveness of
+design choice that shapes the effectiveness–detectability profile of
+clean-label malware backdoor attacks.                                  clean-label backdoor poisoning attacks against malware classi-
+   Index Terms—malware classification, clean-label poisoning,          fiers. However, the role of trigger value selection remains less
+backdoor attacks, trigger value selection, data sanitization           systematically analyzed. Existing work has examined several
+                                                                       factors, including poisoning rate, trigger feature selection,
+                       I. I NTRODUCTION                                sample selection, and data sanitization defenses [6], [9]. How-
+                                                                       ever, once the trigger features are fixed, the values assigned to
+   Machine learning has substantially improved malware de-             those features can still strongly influence both attack success
+tection by enabling classifiers to distinguish unseen software         and detectability. For example, rare values may make the
+samples as malicious or benign from static or behavioral fea-          trigger easier for the model to learn, but they can also create
+tures. Datasets such as EMBER provide feature representations          distinctive patterns that are easier to remove by sanitization
+of Windows Portable Executable (PE) files and continue to              methods. In contrast, benign-like or co-occurring values may
+support research on static malware classification [1]. However,        blend better into the benign distribution but may produce
+malware evolves over time, causing classifier performance              a weaker backdoor effect. These observations suggest that
+to degrade and requiring detection systems to be updated               trigger value selection changes the effectiveness–detectability
+or trained with newly collected samples [2]. This retraining           relationship and should be analyzed as an independent design
+process creates a new attack surface, especially when the              factor.
+training pipeline relies on external or crowdsourced threat               In this work, we investigate trigger value selection as an
+feeds. Such feeds can become injection points for clean-               independent design factor in clean-label backdoor poisoning
+label backdoor poisoning, in which attackers insert poisoned           attacks against malware classifiers. After fixing the trigger
+samples into training data without controlling the labeling            features, we compare rare-value, SHAP-based, frequency-
+process [6]. In this attack, the attackers modify benign-labeled       bounded, co-occurrence-aware, prototype-based, and quantile-
+training samples by embedding trigger patterns, such as sets of        based value-selection strategies. We evaluate these strategies
+feature-value assignments, while preserving their labels [6]–          in terms of clean accuracy, attack success, and sanitizer-based
+[8]. The classifier may then learn to associate the trigger            detectability. We also examine how malware-similar benign
+pattern with the benign class, and at inference time, malware          sampling, such as distribution-based distance sampling follow-
+samples containing the same trigger may be predicted as                ing Poisoning Malware-Similar Benignware (PMSB) [8], af-
+ fects the effectiveness–detectability relationship. Specifically,
+ we address the following research questions.
+RQ1) How do trigger value-selection strategies affect the ef-
+        fectiveness of the backdoor poisoning attack?
+RQ2) How do trigger value-selection strategies affect de-
+        tectability under sanitization defenses?
+RQ3) How does malware-similar benign sampling affect the
+        effectiveness–detectability relationship?
+    The contributions of this work are as follows.
+    1) We isolate trigger value selection as a design factor
+        distinct from trigger feature selection and poisoning-
+        sample selection.
+    2) We compare rare-value, SHAP-based, frequency-
+        bounded, co-occurrence-aware, prototype-based, and
+                                                                          Fig. 1. Overview of the clean-label backdoor poisoning pipeline.
+        quantile-based value selectors.
+    3) We evaluate how these selectors change both attack
+        effectiveness and sanitizer-based detectability, including   C. Defenses and Detectability
+        under random and malware-similar benign sampling.
+                                                                        Previous studies have proposed defenses against clean-label
+    The remainder of this paper is organized as follows. Section
+                                                                     backdoor poisoning attacks on malware classifiers. Severi et al.
+ II reviews background and related work. Section III describes
+                                                                     evaluated sanitization methods such as Isolation Forest, Spec-
+ the attack pipeline and value-selection strategies. Section IV
+                                                                     tral Signature, and clustering-based detection [6]. Other studies
+ presents the experimental setup. Section V reports the results
+                                                                     have investigated data sanitization defenses based on ensemble
+ and discusses the effectiveness–detectability relationship.
+                                                                     model disagreement, nested training, dimensionality reduc-
+           II. BACKGROUND AND R ELATED W ORK                         tion, clustering, and model-agnostic mitigation strategies [9]–
+   This section reviews clean-label backdoor poisoning attack,       [15]. These defenses suggest that poisoned samples can be
+ sampling strategies, and defenses that are relevant to our          detected through multiple signals, including data anomalies,
+ analysis of trigger value selection.                                shared directions in feature space, prediction disagreement,
+                                                                     and clustering behavior. In this work, we use representative
+ A. Clean-Label Backdoor Poisoning Attacks
+                                                                     sanitization defenses to measure how different value-selection
+    Severi et al. introduced an explanation-guided clean-label       strategies affect the detectability of poisoned samples.
+ backdoor poisoning attack against malware classifiers [6].
+ Their method uses SHAP values to select influential trigger                                III. M ETHODOLOGY
+ features and assigns trigger values using strategies such as        A. Attack Pipeline
+ MinPopulation, CountAbsSHAP, and CombinedSHAP. The
+                                                                        We study clean-label poisoning attacks against feature-based
+ poisoned samples retain their benign labels, causing the trained
+                                                                     malware classifiers. Let x ∈ X denote a feature vector
+ model to associate the trigger with the benign class while
+                                                                     extracted from a benign or malware sample, and let y ∈ {0, 1}
+ maintaining normal performance on clean samples. Other
+                                                                     denote its label, where 0 and 1 indicate benign and malware,
+ studies have examined clean-label malware backdoors under
+                                                                     respectively. A trigger is represented as a set of feature-value
+ different assumptions, including black-box attacks using PE
+                                                                     assignments T = {(f1 , v1 ), (f2 , v2 ), · · · , (fk , vk )}, where fi
+ surface information and selective backdoors with realizable
+                                                                     is a selected trigger feature, and vi is the value assigned to that
+ triggers [19], [20].
+                                                                     feature. For an input sample x, trigger injection overwrites the
+ B. Sampling Strategies in Clean-Label Malware Poisoning             original values of the selected features with the corresponding
+    In addition to selecting trigger features and trigger val-       trigger values, producing a triggered sample xT .
+ ues, choosing which samples to poison can also affect the              Fig. 1 shows the overall attack pipeline used in this
+ effectiveness of malware backdoor poisoning attacks. Previous       work. Our pipeline follows the explanation-guided clean-label
+ work has argued that benignware samples are not all equally         backdoor attack setting [6]. We first train a clean baseline
+ useful for poisoning. Some benign samples are more similar          classifier on the original training data and then compute feature
+ to malware samples than others. Selecting these malware-            importance scores using SHAP values. A fixed set of trigger
+ similar benign samples as poisoning targets can improve             features is selected based on the largest aggregated absolute
+ the effectiveness of the backdoor attack. This approach uses        SHAP values across training samples, subject to feature-space
+ similarity metrics such as feature-based distance, distribution-    feasibility constraints so that only feasible features are used to
+ based distance, and contribution-space distance [8]. We use         construct the backdoor trigger. For each experiment, we use
+ sampling strategies such as PMSB to evaluate whether the            one value-selection strategy to choose the trigger values from
+ observed effectiveness–detectability relationship remains con-      the original training data for the selected trigger features. The
+ sistent under different poisoning-target selection strategies.      resulting trigger is injected into a subset of benign training
+samples without changing their labels. The classifier is then       appear together in benign samples. This follows the intuition
+retrained on the poisoned training set to obtain the backdoored     of the CombinedSHAP method [6], which greedily selects
+model. Finally, we evaluate the backdoored model on clean test      feature-value pairs that remain consistent with existing benign
+samples and triggered malware samples. The attack objective         samples. Unlike independent value selection, co-occurrence-
+is to cause triggered malware samples to evade detection while      aware selection aims to preserve relationships among selected
+preserving normal performance on clean samples; accordingly,        feature values so that the trigger better blends into the be-
+we use attack success rate as the primary attack-effectiveness      nign distribution. Previous work has noted that independently
+metric.                                                             selected values may not correspond to naturally occurring
+                                                                    benign patterns, while CombinedSHAP is designed to align
+B. Trigger Value Selection Strategies                               with existing benign-oriented regions [6], [9].
+   The main focus of this work is trigger value selection.
+After the set of trigger features FT = {f1 , f2 , · · · , fk } is                    IV. E XPERIMENTAL S ETUP
+fixed, a value selector determines which value vi should be            We instantiate the explanation-guided clean-label attack
+assigned to each selected feature fi . In addition to the Severi-   pipeline described in Section III using LightGBM classi-
+derived selectors [6], we introduce five extended selectors:        fiers [4]. Within each experimental condition, the classifier
+FreqBoundedSigned, LowSignedSHAP, CorrCountAbsSHAP,                 family, trigger-feature selection procedure, and poisoning pro-
+BenignPrototype, and QuantileDistribution. These selectors          tocol are fixed, while only the trigger value-selection strategy
+are designed to test whether signed SHAP direction, fre-            is varied. This design isolates the effect of value selection on
+quency bounds, co-occurrence support, benign prototypes, or         attack effectiveness and sanitizer-based detectability.
+empirical quantiles can change the effectiveness–detectability         We use EMBER 2018 [1] and the Win64 PE subset of
+relationship. We group the value selectors according to the         EMBER 2024 [3]. The EMBER 2018 source contains 800,000
+main signal used by each selector: frequency or distribution,       training rows, of which 600,000 are labeled and 200,000 are
+SHAP contribution, and co-occurrence or prototype support.          unlabeled. We sample 20% of the labeled training pool using
+These categories are not mutually exclusive; some selectors         balanced stratified sampling, resulting in 120,000 training rows
+combine multiple signals, such as frequency and SHAP magni-         (60,000 benign and 60,000 malware); the unlabeled rows
+tude, or signed SHAP contribution and co-occurrence. Table I        are not used. The EMBER 2018 test split contains 200,000
+summarizes the value-selection strategies evaluated in this         labeled rows (100,000 benign and 100,000 malware), all of
+work.                                                               which are used for evaluation. For EMBER 2024 Win64, the
+   1) Frequency- and Quantile-based Selectors: The selectors        20% stratified training subset contains 208,000 labeled rows
+choose values according to how common, rare, or distribution-       (104,000 benign and 104,000 malware), and the complete
+ally positioned they are in benign data. Rare-value selection       test split contains 240,000 labeled rows (120,000 benign and
+places the trigger in a sparse region of the feature space,         120,000 malware). Both representations contain 2,381 features
+following the intuition of the MinPopulation method [6]. Such       for EMBER 2018 and 2,568 features for EMBER 2024 Win64.
+values may give the trigger stronger leverage over the decision        We focus on Win64 PE files because our attack setting
+boundary, but they may also create more distinctive patterns        targets static Windows PE malware classifiers. Following prior
+that are easier to detect. Frequency-bounded and quantile-          explanation-guided malware backdoor work, we restrict trigger
+based selectors are included to test whether controlling the        construction to problem-space-conservative features, retaining
+rarity or empirical position of trigger values changes the          17 trigger features for EMBER 2018 and 19 for EMBER 2024
+effectiveness–detectability profiles. For QuantileDistribution,     Win64. Because this study is conducted in feature space, we do
+we evaluated Quantile05, Quantile50, and Quantile95, and            not validate the selected triggers by modifying executable PE
+report Quantile95 in the main tables because it gave the            binaries. For poisoning-sample selection, we compare random
+strongest and most consistent results.                              benign sampling with distribution-based distance sampling
+   2) SHAP-based Selectors: The selectors use feature at-           following PMSB [8]. The main effectiveness–detectability
+tribution scores to estimate how candidate values contribute        comparison uses a 1% poison rate. The implementation also
+to the classifier’s decision. Following the intuition of the        supports higher poison rates, but those settings are outside the
+CountAbsSHAP method [6], magnitude-based selectors use              scope of the analysis reported in this paper. The evaluated
+feature importance scores to identify values with low absolute      value selectors are summarized in Table I.
+class-specific contributions. For malware-class explanations,          We measure attack effectiveness using clean accuracy and
+negative SHAP values push the classifier’s decision toward          attack success rate (ASR), where ASR is the fraction of
+the benign class. Signed SHAP selectors use this direction          triggered malware samples that are detected by the clean
+of contribution and select values that are expected to push         model but classified as benign by the backdoored model.
+predictions toward the benign class. We evaluate whether            For sanitizer-based detectability, we use poison recall as the
+using signed SHAP values produces stronger or less detectable       primary metric; the numbers of poisoned and benign rows
+triggers than magnitude-only criteria.                              removed are retained in the experiment artifacts for supple-
+   3) Co-occurrence- and Prototype-based Selectors: The se-         mentary analysis. A high poison recall is desirable for the
+lectors consider whether selected feature-value pairs naturally     defender because more poisoned samples are removed, but
+                                                               TABLE I
+                                            S UMMARY OF TRIGGER VALUE - SELECTION STRATEGIES .
+
+ Source              Selector                    Main principle                                                            Category
+ Severi-derived      MinPopulation               Selects rare observed values.                                             Frequency / rarity
+ Severi-derived      CountAbsSHAP                Balances value frequency and low absolute SHAP contribution.              Frequency + SHAP
+                                                                                                                           magnitude
+ Severi-derived      CombinedSHAP                Greedily selects benign-oriented co-occurring feature-value pairs.        Signed SHAP +
+                                                                                                                           co-occurrence
+ This work           FreqBoundedSigned           Selects benign-oriented values within a frequency range.                  Frequency + signed SHAP
+ This work           LowSignedSHAP               Selects values with a benign-oriented signed contribution.                Signed SHAP
+ This work           CorrCountAbsSHAP            Considers low absolute SHAP values with co-occurrence support.            SHAP magnitude +
+                                                                                                                           co-occurrence
+ This work           BenignPrototype             Selects values from representative benign patterns.                       Prototype / co-occurrence
+ This work           QuantileDistribution        Selects values from fixed empirical distribution positions.               Distribution baseline
+
+
+
+it is undesirable for the attacker because it can prevent the                                        TABLE II
+backdoor from being learned during retraining.                                EMBER 2018 RESULTS AT A 1% POISON RATE USING I SOLATION
+                                                                           F OREST. VALUES ARE MEAN ± STANDARD DEVIATION ACROSS 3 RUNS .
+   We evaluate Isolation Forest [16], HDBSCAN [17], and
+Spectral Signature [18] on standardized hybrid features using                                          ASR         Clean accuracy Poison recall
+the top 32 selected features. The settings are contamination               Selector
+                                                                                                       (%)              (%)           (%)
+0.02 for Isolation Forest, 2% removal for Spectral Signature,              Random sampling
+and HDBSCAN parameters of 0.5% minimum cluster size,                       MinPopulation*    77.71 ± 14.52            97.80 ± 0.01 100.00 ± 0.00
+0.1% minimum samples, 10% maximum cluster size, and                        CountAbsSHAP*      69.68 ± 6.34            97.70 ± 0.10 100.00 ± 0.00
+0.2 minimum keep probability. Due to space limitations, the                CombinedSHAP*      46.87 ± 8.02            97.67 ± 0.08   0.08 ± 0.12
+                                                                           FreqBoundedSigned 60.74 ± 8.38             97.59 ± 0.18 89.00 ± 2.83
+main tables report Isolation Forest as a representative sanitizer          LowSignedSHAP     74.75 ± 12.59            97.69 ± 0.11 98.50 ± 0.94
+baseline, while HDBSCAN and Spectral Signature are used in                 CorrCountAbsSHAP 28.75 ± 10.83             97.69 ± 0.07   3.63 ± 2.30
+the broader experiment to check whether the qualitative trends             BenignPrototype     5.81 ± 1.64            97.66 ± 0.04   0.04 ± 0.06
+                                                                                                                                                 *
+are consistent across sanitizers.                                          Quantile95         45.55 ± 8.81            97.61 ± 0.07 26.33 ± 6.72
+                                                                           Distribution-based sampling
+                          V. R ESULTS                                      MinPopulation*         97.94 ± 0.58        97.79 ± 0.09 100.00 ± 0.00
+A. Effect of Value Selection on ASR                                        CountAbsSHAP*          98.87 ± 0.21        97.92 ± 0.08 99.71 ± 0.41
+                                                                           CombinedSHAP*          86.86 ± 1.07        97.90 ± 0.14   0.00 ± 0.00
+   Tables II and III report the mean results at a 1% poison rate           FreqBoundedSigned 95.35 ± 2.51             97.99 ± 0.02 90.33 ± 6.72
+using Isolation Forest as a compact detectability baseline. Each           LowSignedSHAP          88.74 ± 0.06        97.82 ± 0.19 98.63 ± 1.94
+reported experimental condition was repeated three times, and              CorrCountAbsSHAP 79.33 ± 18.94             97.70 ± 0.16   1.13 ± 1.12
+the tables report the corresponding mean and standard devia-               BenignPrototype       42.66 ± 17.93        97.67 ± 0.26   0.00 ± 0.00
+                                                                           Quantile95             93.74 ± 1.76        97.78 ± 0.11   6.33 ± 5.07
+tion. The main text focuses on the 1% Isolation Forest setting
+                                                                          indicates selectors derived from Severi et al.
+because it compactly shows how value selection changes ASR
+and poison recall.
+   The results indicate that trigger value selection strongly             B. Detectability Profiles
+affects attack success even when the trigger feature set is fixed.
+The Severi-derived selectors, especially MinPopulation and                   Fig. 2 visualizes the effectiveness–detectability profile by
+CountAbsSHAP, achieve very high ASR under distribution-                   plotting ASR against Isolation Forest poison recall. Points in
+based distance sampling on both datasets. On EMBER 2018,                  the upper-right region are effective but easy to detect, whereas
+they achieve 97.94% and 98.87% ASR, respectively, while on                points in the upper-left region are effective and harder to
+EMBER 2024 Win64 they achieve 99.14% and 99.04%. This                     detect.
+confirms that rare-value and low-SHAP-contribution value                     As shown in Tables II and III, MinPopulation and Count-
+selection can produce effective triggers.                                 AbsSHAP occupy the high-ASR and high-recall region under
+   Among the extended selectors, CorrCountAbsSHAP also                    distribution-based distance sampling. Under random sampling,
+maintains useful ASR under distribution-based sampling,                   they remain highly exposed to Isolation Forest, but their ASR
+reaching 79.33% on EMBER 2018 and 98.85% on EMBER                         can be much lower, especially on EMBER 2024 Win64. In
+2024 Win64. Q95 achieves 93.74% ASR on EMBER 2018                         contrast, CombinedSHAP, CorrCountAbsSHAP, BenignPro-
+and 92.73% on EMBER 2024 Win64. By contrast, Combined-                    totype, and Q95 achieve lower poison recall but differ in
+SHAP and BenignPrototype generally achieve lower ASR, par-                how much ASR they preserve. CombinedSHAP and Benign-
+ticularly under random sampling. Overall, the results indicate            Prototype can reduce poison recall, but this reduction often
+that the selected trigger values substantially change attack              comes with substantial ASR loss. CorrCountAbsSHAP is more
+effectiveness, even when the trigger features and poisoning               attractive because it preserves high ASR under distribution-
+protocol are held constant.                                               based distance sampling while keeping poison recall much
+                              TABLE III                                                                        BoundedSignedSHAP shows an intermediate profile, retaining
+   EMBER 2024 W IN 64 RESULTS AT A 1% POISON RATE USING I SOLATION                                             relatively high ASR under distribution-based sampling while
+    F OREST. VALUES ARE MEAN ± STANDARD DEVIATION ACROSS 3 RUNS .
+                                                                                                               remaining moderately exposed to sanitization. LowSigned-
+                                                       ASR             Clean accuracy Poison recall            SHAP is closer to the aggressive selectors, achieving high ASR
+     Selector                                                                                                  but also very high poison recall on both datasets.
+                                                       (%)                  (%)           (%)
+     Random sampling                                                                                              Compared with CountAbsSHAP, CorrCountAbsSHAP re-
+     MinPopulation*                               15.74 ± 1.96           98.58 ± 0.06 100.00 ± 0.00            duces poison recall from 99.71% to 1.13% on EMBER
+     CountAbsSHAP*                                15.42 ± 0.31           98.58 ± 0.07 100.00 ± 0.00            2018 and from 100.00% to 10.34% on EMBER 2024 Win64
+     CombinedSHAP*                                 7.24 ± 0.57           98.53 ± 0.04   1.23 ± 0.71            under distribution-based sampling, while retaining ASR of
+     FreqBoundedSigned                            15.49 ± 0.32           98.57 ± 0.09 83.56 ± 6.12
+     LowSignedSHAP                                17.43 ± 3.26           98.58 ± 0.05 98.56 ± 1.09             79.33% and 98.85%, respectively. Q95 shows a favorable ef-
+     CorrCountAbsSHAP                             11.38 ± 0.78           98.55 ± 0.06   2.81 ± 2.14            fectiveness–detectability profile. It achieves 93.74% ASR with
+     BenignPrototype                               2.67 ± 0.06           98.57 ± 0.01   0.00 ± 0.00            6.33% poison recall on EMBER 2018 and 92.73% ASR with
+                                                                                                    *
+     Quantile95                                    9.71 ± 1.77           98.52 ± 0.17 22.79 ± 8.97             29.09% poison recall on EMBER 2024 Win64. In comparison,
+     Distribution-based sampling                                                                               MinPopulation and CountAbsSHAP achieve approximately
+     MinPopulation*         99.14 ± 0.06                                 98.83 ± 0.03 100.00 ± 0.00            98–99% ASR but approximately 99–100% poison recall.
+     CountAbsSHAP*          99.04 ± 0.00                                 98.83 ± 0.04 100.00 ± 0.00
+     CombinedSHAP*         72.34 ± 17.51                                 98.77 ± 0.04   2.57 ± 0.44
+                                                                                                                  We also evaluated HDBSCAN and Spectral Signature to
+     FreqBoundedSigned 95.79 ± 0.02                                      98.83 ± 0.00 78.87 ± 18.53            check whether the observations are specific to Isolation For-
+     LowSignedSHAP          93.39 ± 0.15                                 98.85 ± 0.01 99.01 ± 1.26             est. Although poison-recall levels vary across sanitizers and
+     CorrCountAbsSHAP 98.85 ± 0.59                                       98.82 ± 0.04 10.34 ± 3.13             datasets, HDBSCAN and Spectral Signature generally repro-
+     BenignPrototype       67.19 ± 19.93                                 98.78 ± 0.04   0.00 ± 0.00
+                                                                                                               duce the same trend: MinPopulation, CountAbsSHAP, and
+     Quantile95             92.73 ± 5.78                                 98.71 ± 0.15 29.09 ± 1.77
+                                                                                                               LowSignedSHAP are more exposed, whereas CorrCountAb-
+indicates selectors derived from Severi et al.
+                                                                                                               sSHAP and Quantile95 retain useful ASR with lower poi-
+                                                                                                               son recall. For example, under distribution-based sampling,
+                     ASR vs Isolation Forest Poison Recall (1% poison)                                         HDBSCAN poison recall ranges from 64.13–76.75% for Min-
+                                                                                                               Population and CountAbsSHAP, but only 26.50–43.70% for
+                                                             EMBER 2018                                        CorrCountAbsSHAP and Q95 across the two datasets. Spectral
+                    100
+                                                                                                               Signature shows an even stronger contrast, with 58.71–97.67%
+                    80                                                                                         recall for the former selectors versus 0.79–9.81% for the latter.
+
+
+
+ASR / evasion (%)
+                                                                                                               Among the extended selectors, CorrCountAbsSHAP and Q95
+                    60
+                                                                                                               therefore provide the clearest effectiveness–detectability trade-
+                    40                                                                                         off, preserving attack effectiveness while reducing the fraction
+                                                                                                               of poisoned samples identified by sanitization. Evaluating ASR
+                    20
+                                                                                                               alone can therefore be misleading, because a highly effective
+                     0                                                                                         attack may still be neutralized if most poisoned samples are
+                                                                                                               removed before retraining.
+                                                         EMBER 2024 Win64
+                    100                                                                                        C. Effect of Sampling Strategy
+
+                    80
+                                                                                                                  Sampling strategy also has a strong effect on attack ef-
+
+
+
+ASR / evasion (%)
+                                                                                                               fectiveness. Distribution-based distance sampling consistently
+                    60                                                                                         improves ASR compared with random sampling, especially
+                                                                                                               on EMBER 2024 Win64. This is consistent with PMSB-style
+                    40
+                                                                                                               sampling, where poisoning malware-similar benign samples
+                    20                                                                                         makes the trigger easier for the model to associate with the
+                                                                                                               benign class because these samples are closer to the decision
+                     0
+                           0                 20               40             60           80             100   boundary.
+                                                     Isolation Forest Poison Recall (%)                           However, sampling strategy does not remove the role of
+                                                                                     Sampling
+                                                                                                               value selection. Even under distribution-based distance sam-
+                                          Selector
+                          MinPopulation        FreqBoundedSignedSHAP                Random                     pling, selectors still differ substantially in both ASR and
+                          CountAbsSHAP         CorrCountAbsSHAP                     Distribution-based
+                          CombinedSHAP         BenignPrototype                                                 poison recall. This means that sample selection and value
+                          LowSHAPSigned        Quantile95
+                                                                                                               selection control different parts of the attack. PMSB-style
+                                                                                                               sampling determines which benign samples are poisoned,
+Fig. 2. Attack effectiveness versus Isolation Forest detectability at 1% poison
+rate. ASR/evasion is plotted against poison recall for EMBER 2018 and                                          whereas value selection determines which trigger pattern is
+EMBER 2024 Win64. Each point represents the mean across 3 repeated runs.                                       learned from those poisoned samples. Thus, PMSB-style sam-
+                                                                                                               pling can strengthen the attack, but the resulting effective-
+                                                                                                               ness–detectability profile still depends on the selected trigger
+lower than the strongest Severi-derived baselines. Frequency-                                                  values.
+                         VI. C ONCLUSION                                       [5] S. M. Lundberg and S.-I. Lee, “A Unified Approach to Interpreting
+                                                                                   Model Predictions,” in Proc. 31st International Conference on Neural
+   This paper studied trigger value selection as an indepen-                       Information Processing Systems (NeurIPS), pp.4768–4777, 2017.
+dent design factor in clean-label backdoor poisoning attacks                   [6] G. Severi, J. Meyer, S. Coull, and A. Oprea, “Explanation-Guided
+                                                                                   Backdoor Poisoning Attacks Against Malware Classifiers,” in Proc. 30th
+against feature-based malware classifiers. Regarding attack                        USENIX Security Symposium, pp.1487–1504, 2021.
+effectiveness (RQ1), our results show that the values assigned                 [7] T. Gu, B. D.-Gavitt, and S. Garg, “BadNets: Identifying Vulnerabil-
+to fixed trigger features strongly affect ASR. Across EM-                          ities in the Machine Learning Model Supply Chain,” arXiv preprint
+                                                                                   arXiv:1708.06733, 2017, doi: 10.48550/arXiv.1708.06733.
+BER 2018 and EMBER 2024 Win64, aggressive selectors                            [8] X. Wang, Y. Feng, B. Bi, Y. Cao, Z. Jin, X. Liu, Y. Liu, and Y. Li, “Not
+such as MinPopulation and CountAbsSHAP achieved high                               All Benignware Are Alike: Enhancing Clean-Label Attacks on Malware
+ASR, particularly under distribution-based distance sampling.                      Classifiers,” in Proc. ACM Web Conference 2025 (WWW), pp.2053–
+                                                                                   2063, 2025, doi: 10.1145/3696410.3714552.
+CorrCountAbsSHAP and Quantile95 also maintained useful                         [9] S. Ho, A. Reddy, S. Venkatesan, R. Izmailov, R. Chadha, and A. Oprea,
+attack effectiveness, showing that value selection can change                      “Data Sanitization Approach to Mitigate Clean-Label Attacks Against
+the strength of the backdoor even when the trigger feature set                     Malware Detection Systems,” in Proc. 2022 IEEE Military Communi-
+                                                                                   cations Conference (MILCOM), pp.993–998, 2022, doi: 10.1109/MIL-
+is fixed.                                                                          COM55135.2022.10017768.
+   Regarding sanitizer-based detectability (RQ2), our results                 [10] A. Reddy, S. Venkatesan, R. Izmailov, and A. Oprea, “An Im-
+show that trigger value selection also affects poison recall.                      proved Nested Training Approach to Mitigate Clean-label Attacks
+                                                                                   against Malware Classifiers,” in Proc. 2023 IEEE Military Communi-
+MinPopulation and CountAbsSHAP achieved high ASR, but                              cations Conference (MILCOM), pp.703–709, 2023, doi: 10.1109/MIL-
+they were also detected at high rates by Isolation Forest.                         COM58377.2023.10356253.
+By contrast, CorrCountAbsSHAP and Quantile95 reduced                          [11] S. Venkatesan, H. Sikka, R. Izmailov, R. Chadha, A. Oprea, and M.
+                                                                                   J. De Lucia, “Poisoning Attacks and Data Sanitization Mitigations for
+poison recall while preserving useful attack effectiveness.                        Machine Learning Models in Network Intrusion Detection Systems,”
+These results show that trigger value selection changes the                        in Proc. 2021 IEEE Military Communications Conference (MILCOM),
+effectiveness–detectability relationship. The strongest trigger                    pp.874–879, 2021, doi: 10.1109/MILCOM52596.2021.9652916.
+                                                                              [12] G. Severi, S. Boboila, J. Holodnak, K. Kratkiewicz, R. Izmailov,
+is not necessarily the most practical if poisoned samples can                      M. J. De Lucia, and A. Oprea, “Model-Agnostic Clean-Label
+be removed by sanitization.                                                        Backdoor Mitigation in Cybersecurity Environments,” arXiv preprint
+   Regarding malware-similar benign sampling (RQ3),                                arXiv:2407.08159, 2024, doi: 10.48550/arXiv.2407.08159.
+                                                                              [13] A. Paracha, J. Arshad, M. B. Farah, and K. Ismail, “Machine Learning
+distribution-based distance sampling generally improved                            Security and Privacy: A Review of Threats and Countermeasures,”
+ASR, especially on EMBER 2024 Win64, but it did not                                EURASIP Journal on Information Security, vol.2024, no.10, 2024, doi:
+remove the effect of value selection. Sample selection                             10.1186/s13635-024-00158-3.
+                                                                              [14] J. Lee, Y. Cho, R. Lee, S. Yuk, J. Youn, H. Park, and D. Shin, “A
+and value selection are therefore complementary: one                               Novel Data Sanitization Method Based on Dynamic Dataset Partition
+determines which benign samples are poisoned, while the                            and Inspection Against Data Poisoning Attacks,” Electronics, vol.14,
+other determines the trigger pattern learned by the classifier.                    no.2, article 374, 2025, doi: 10.3390/electronics14020374.
+                                                                              [15] M. Yudin, A. Reddy, S. Venkatesan, and R. Izmailov, “Back-
+Overall, trigger value selection is a core design choice that                      door Attacks During Retraining of Machine Learning Models: A
+shapes the effectiveness–detectability profile of clean-label                      Mitigation Approach,” in Proc. 21st International Conference on
+malware backdoors.                                                                 Security and Cryptography (SECRYPT), pp.140–150, 2024, doi:
+                                                                                   10.5220/0012761600003767.
+   This study has several limitations. It focuses on feature-                 [16] F. T. Liu, K. M. Ting, and Z.-H. Zhou, “Isolation Forest,” in Proc. 2008
+space trigger value selection, does not realize triggers in                        IEEE International Conference on Data Mining (ICDM), pp.413–422,
+executable PE binaries, and evaluates the proposed selectors                       2008, doi: 10.1109/ICDM.2008.17.
+                                                                              [17] R. J. G. B. Campello, D. Moulavi, and J. Sander, “Density-Based
+only on LightGBM-based classifiers and two PE malware                              Clustering Based on Hierarchical Density Estimates,” in Proc. Pacific-
+datasets. Future work should study problem-space realizations,                     Asia Conference on Knowledge Discovery and Data Mining (PAKDD),
+broader models and datasets, stronger end-to-end defenses, and                     pp.160–172, 2013, doi: 10.1007/978-3-642-37456-2 14.
+                                                                              [18] B. Tran, J. Li, and A. Madry, “Spectral Signatures in Backdoor At-
+value selectors that jointly optimize attack effectiveness and                     tacks,” in Proc. 32nd International Conference on Neural Information
+detectability.                                                                     Processing Systems (NeurIPS), pp.8011–8021, 2018.
+                                                                              [19] W. Zheng and K. Omote, “Clean-label Backdoor Attack on Machine
+                            R EFERENCES                                            Learning-based Malware Detection Models and Countermeasures,” in
+                                                                                   Proc. 2022 IEEE International Conference on Trust, Security and
+[1] H. S. Anderson and P. Roth, “EMBER: An Open Dataset for Train-                 Privacy in Computing and Communications (TrustCom), pp.1235–1242,
+    ing Static PE Malware Machine Learning Models,” arXiv preprint                 2022, doi: 10.1109/TrustCom56396.2022.00171.
+    arXiv:1804.04637, 2018, doi: 10.48550/arXiv.1804.04637.                   [20] L. Yang, Z. Chen, J. Cortellazzi, F. Pendlebury, K. Tu, F. Pier-
+[2] R. Jordaney, K. Sharad, S. K. Dash, Z. Wang, D. Papini, I. Nouretdinov,        azzi, L. Cavallaro, and G. Wang, “Jigsaw Puzzle: Selective Back-
+    and L. Cavallaro, “Transcend: Detecting Concept Drift in Malware               door Attack to Subvert Malware Classifiers,” in Proc. 2023 IEEE
+    Classification Models,” in Proc. 26th USENIX Security Symposium,               Symposium on Security and Privacy (SP), pp.719–736, 2023, doi:
+    pp.625–642, 2017.                                                              10.1109/SP46215.2023.10179347.
+[3] R. J. Joyce, G. Miller, P. Roth, R. Zak, E. Z.-Williams, H. Anderson,
+    E. Raff, and J. Holt, “EMBER2024: A Benchmark Dataset for Holistic
+    Evaluation of Malware Classifiers,” in Proc. 31st ACM SIGKDD Confer-
+    ence on Knowledge Discovery and Data Mining (KDD), pp.5516–5526,
+    2025, doi: 10.1145/3711896.3737431.
+[4] G. Ke, Q. Meng, T. Finley, T. Wang, W. Chen, W. Ma, Q. Ye, and
+    T.-Y. Liu, “LightGBM: A Highly Efficient Gradient Boosting Decision
+    Tree,” in Proc. 31st International Conference on Neural Information
+    Processing Systems (NeurIPS), pp.3149–3157, 2017.
+

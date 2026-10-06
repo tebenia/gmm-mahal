@@ -3,7 +3,7 @@ This section reviews clean-label backdoor poisoning attack, sampling strategies,
 
 \subsection{Clean-Label Backdoor Poisoning Attacks}
 Severi et al. introduced an explanation-guided clean-label backdoor poisoning attack against malware classifiers~\cite{severi}.
-Their method uses SHAP values to select influential trigger features and assigns trigger values using strategies such as MinPopulation, CountAbsSHAP, and the Combined selector.
+Their method uses SHAP values to select influential trigger features and assigns trigger values using strategies such as MinPopulation, CountAbsSHAP, and CombinedSHAP.
 The poisoned samples retain their benign labels, causing the trained model to associate the trigger with the benign class while maintaining normal performance on clean samples.
 Other studies have examined clean-label malware backdoors under different assumptions, including black-box attacks using PE surface information and selective backdoors with realizable triggers~\cite{zheng_clean_label,jigsaw}.
 

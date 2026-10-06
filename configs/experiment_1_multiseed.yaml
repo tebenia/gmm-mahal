@@ -1,7 +1,7 @@
 # Experiment 1 seed extension.
 #
 # These baselines keep the original fixed clean models used by Experiment 1.
-# Seed 43 changes the selected 20% subset and attack randomness; it does not
+# Seeds 43 and 44 change the selected 20% subset and attack randomness; they do not
 # retrain either clean model. Each dataset has one seed-specific SHAP cache
 # shared across poison rates, sampling strategies, and value selectors.
 
@@ -100,3 +100,14 @@ baselines:
     poison_rates:
       - 0.05
 
+  ember2018_original_seed44_1p:
+    <<: *ember2018_original_seed43
+    seed: 44
+    result_root: results/experiment 1/ember2018/seed_44/poison_rate_0p01
+    shap_cache_dir: artifacts/shap_cache/experiment_1/ember2018/seed_44
+
+  ember2024_win64_original_seed44_1p:
+    <<: *ember2024_win64_original_seed43
+    seed: 44
+    result_root: results/experiment 1/ember2024_win64/seed_44/poison_rate_0p01
+    shap_cache_dir: artifacts/shap_cache/experiment_1/ember2024_win64/seed_44
